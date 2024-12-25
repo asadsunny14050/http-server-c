@@ -1,7 +1,15 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <winsock.h>
+#ifdef _WIN32  // Check if compiling for Windows
+    #include <winsock2.h>  // Include Winsock library for Windows
+    #pragma comment(lib, "ws2_32.lib")  // Link the Winsock library
+#else  // If not Windows, assume Linux (POSIX)
+    #include <sys/socket.h>  // Include POSIX socket library for Linux
+    #include <netinet/in.h>   // Include for sockaddr_in structure
+    #include <arpa/inet.h>    // Include for inet_addr and other functions
+    #include <unistd.h>       // For close() function on Linux
+#endif
 
 int main()
 {
@@ -59,7 +67,6 @@ int main()
         return -1;
     }
 
-    closesocket(sock_fd);
-    WSACleanup();
+    // close(sock_fd);
     return 0;
 }
