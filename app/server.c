@@ -5,10 +5,10 @@
 // #include <winsock2.h>              // Include Winsock library for Windows
 // #pragma comment(lib, "ws2_32.lib") // Link the Winsock library
 // #else                              // If not Windows, assume Linux (POSIX)
-#include <sys/socket.h>            // Include POSIX socket library for Linux
-#include <netinet/in.h>            // Include for sockaddr_in structure
-#include <arpa/inet.h>             // Include for inet_addr and other functions
-#include <unistd.h>                // For close() function on Linux
+#include <sys/socket.h> // Include POSIX socket library for Linux
+#include <netinet/in.h> // Include for sockaddr_in structure
+#include <arpa/inet.h>  // Include for inet_addr and other functions
+#include <unistd.h>     // For close() function on Linux
 // #endif
 
 #define PORT 3001
@@ -73,18 +73,15 @@ int main()
         return -1;
     }
 
-
     printf("A client is connected\nHis socket number is %d\n\n", new_socket);
 
-    const char* msg = "Hello World!";
+    const char *msg = "Hello World!";
 
-  
-
-    if (send(sock_fd, msg, sizeof(msg), 0) < 0) {
+    if (send(sock_fd, msg, sizeof(msg), 0) < 0)
+    {
         perror("Failed to send message");
         return -1;
     }
-
 
     // close(sock_fd);
 
