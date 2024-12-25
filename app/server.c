@@ -1,15 +1,17 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#ifdef _WIN32  // Check if compiling for Windows
-    #include <winsock2.h>  // Include Winsock library for Windows
-    #pragma comment(lib, "ws2_32.lib")  // Link the Winsock library
-#else  // If not Windows, assume Linux (POSIX)
-    #include <sys/socket.h>  // Include POSIX socket library for Linux
-    #include <netinet/in.h>   // Include for sockaddr_in structure
-    #include <arpa/inet.h>    // Include for inet_addr and other functions
-    #include <unistd.h>       // For close() function on Linux
-#endif
+// #ifdef _WIN32                      // Check if compiling for Windows
+// #include <winsock2.h>              // Include Winsock library for Windows
+// #pragma comment(lib, "ws2_32.lib") // Link the Winsock library
+// #else                              // If not Windows, assume Linux (POSIX)
+#include <sys/socket.h>            // Include POSIX socket library for Linux
+#include <netinet/in.h>            // Include for sockaddr_in structure
+#include <arpa/inet.h>             // Include for inet_addr and other functions
+#include <unistd.h>                // For close() function on Linux
+// #endif
+
+#define PORT 3001
 
 int main()
 {
@@ -37,13 +39,13 @@ int main()
     }
 
     printf("Socket Created brother!\n\n");
-  
 
     serv_info.sin_family = AF_INET;
-    serv_info.sin_port = htons(3001);
+    serv_info.sin_port = htons(PORT);
     serv_info.sin_addr.s_addr = htonl(INADDR_ANY);
 
-    if (bind(sock_fd, (const struct sockaddr *) &serv_info, sizeof(serv_info) ) < 0) {
+    if (bind(sock_fd, (const struct sockaddr *)&serv_info, sizeof(serv_info)) < 0)
+    {
         perror("Error binding, mate!");
         return -1;
     }
@@ -51,22 +53,40 @@ int main()
 
     int connections_queue = 5;
 
-    if (listen(sock_fd, connections_queue) < 0) {
+    if (listen(sock_fd, connections_queue) < 0)
+    {
         perror("Somehow cannot listen, mate!");
         return -1;
     }
-    printf("Bind successful brother!\n\n");
-    printf("Waiting for a client to connect\n\n");
+    printf("listening on Port %d....\n\n", PORT);
+
+    Sleep(1);
+    printf("Waiting for a client to connect...\n\n");
 
     int client_addrlen = sizeof(client_addr);
 
-    SOCKET new_socket = accept(sock_fd, (struct sockaddr *) &client_addr, &client_addrlen);
+    SOCKET new_socket = accept(sock_fd, (struct sockaddr *)&client_addr, &client_addrlen);
 
-    if (new_socket < 0) {
+    if (new_socket < 0)
+    {
         perror("Cannot establish connection with client, mate!");
         return -1;
     }
 
+
+    printf("A client is connected\nHis socket number is %d\n\n", new_socket);
+
+    const char* msg = "Hello World!";
+
+  
+
+    if (send(sock_fd, msg, sizeof(msg), 0) < 0) {
+        perror("Failed to send message");
+        return -1;
+    }
+
+
     // close(sock_fd);
+
     return 0;
 }
