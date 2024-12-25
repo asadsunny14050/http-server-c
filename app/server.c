@@ -15,6 +15,8 @@
 
 int main()
 {
+    if (_WIN32) {
+
     WSADATA wsa_data;
     int wsa_result = WSAStartup(MAKEWORD(2, 2), &wsa_data);
 
@@ -25,11 +27,14 @@ int main()
     }
 
     printf("Kick started WSA, Yay!!!!\n\n");
+        
+    }
+  
 
     struct sockaddr_in serv_info;
     struct sockaddr_in client_addr;
 
-    SOCKET sock_fd = socket(AF_INET, SOCK_STREAM, 0);
+    int sock_fd = socket(AF_INET, SOCK_STREAM, 0);
 
     if (sock_fd < 0)
     {
