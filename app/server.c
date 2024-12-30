@@ -9,10 +9,12 @@
 #include <sys/socket.h> // Include POSIX socket library for Linux
 #include <netinet/in.h> // Include for sockaddr_in structure
 #include <arpa/inet.h>  // Include for inet_addr and other functions
-#include <unistd.h>     // For close() function on Linux
+#include <unistd.h>
+#include <errno.h>
+// For close() function on Linux
 // #endif
 
-#define PORT 3001
+#define PORT 4221
 #define BUFFER_SIZE 3000
 
 void handle_request(int client_fd)
@@ -71,6 +73,15 @@ int main()
     }
 
     printf("Socket Created brother!\n\n");
+
+    // Since the tester restarts your program quite often, setting SO_REUSEADDR
+    // ensures that we don't run into 'Address already in use' errors
+    int reuse = 1;
+    if (setsockopt(sock_fd, SOL_SOCKET, SO_REUSEADDR, &reuse, sizeof(reuse)) < 0)
+    {
+        printf("SO_REUSEADDR failed: %s \n", strerror(errno));
+        return 1;
+    }
 
     serv_info.sin_family = AF_INET;
     serv_info.sin_port = htons(PORT);
