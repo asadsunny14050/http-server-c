@@ -1,8 +1,9 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <stdlib.h>
 // #ifdef _WIN32                      // Check if compiling for Windows
-// #include <winsock2.h>              // Include Winsock library for Windows
+// #include <winsock2.h> // Include Winsock library for Windows
 // #pragma comment(lib, "ws2_32.lib") // Link the Winsock library
 // #else                              // If not Windows, assume Linux (POSIX)
 #include <sys/socket.h> // Include POSIX socket library for Linux
@@ -12,22 +13,49 @@
 // #endif
 
 #define PORT 3001
+#define BUFFER_SIZE 3000
+
+void handle_request(int client_fd)
+{
+
+    char *buffer = (char *)malloc(BUFFER_SIZE * sizeof(char));
+
+    ssize_t bytes_received = recv(client_fd, buffer, BUFFER_SIZE, 0);
+
+    if (bytes_received < 0)
+    {
+        perror("No bytes, mate!");
+    }
+
+    char *message = "HTTP/1.1 200 OK\r\n\r\n";
+
+    if (send(client_fd, message, strlen(message), 0) > 0)
+    {
+        printf("Response sent sucessfully\n");
+    }
+    else
+    {
+        printf("Response not sent");
+    }
+    free(buffer);
+    // closesocket(client_fd);
+}
 
 int main()
 {
-    // if (_WIN32) {
-
-    // WSADATA wsa_data;
-    // int wsa_result = WSAStartup(MAKEWORD(2, 2), &wsa_data);
-
-    // if (wsa_result != 0)
+    // if (_WIN32)
     // {
-    //     perror("WSA startup failed for some stupid fucking reason");
-    //     return -1;
-    // }
 
-    // printf("Kick started WSA, Yay!!!!\n\n");
+    //     WSADATA wsa_data;
+    //     int wsa_result = WSAStartup(MAKEWORD(2, 2), &wsa_data);
 
+    //     if (wsa_result != 0)
+    //     {
+    //         perror("WSA startup failed for some stupid fucking reason");
+    //         return -1;
+    //     }
+
+    //     printf("Kick started WSA, Yay!!!!\n\n");
     // }
 
     struct sockaddr_in serv_info;
@@ -68,22 +96,24 @@ int main()
 
     int client_addrlen = sizeof(client_addr);
 
-    int new_socket = accept(sock_fd, (struct sockaddr *)&client_addr, &client_addrlen);
+    // infinite loop for keep taking client connections
 
-    if (new_socket < 0)
+    while (1)
     {
-        perror("Cannot establish connection with client, mate!");
-        return -1;
-    }
 
-    printf("A client is connected\nHis socket number is %d\n\n", new_socket);
+        int new_socket = accept(sock_fd, (struct sockaddr *)&client_addr, &client_addrlen);
 
-    const char *msg = "Hello World!";
+        if (new_socket < 0)
+        {
+            perror("Cannot establish connection with client, mate!");
+            return -1;
+        }
 
-    if (send(sock_fd, msg, sizeof(msg), 0) < 0)
-    {
-        perror("Failed to send message");
-        return -1;
+        printf("new socket is %d\n\n", new_socket);
+
+        printf("A client is connected\nHis socket number is %d\n\n", new_socket);
+
+        handle_request(new_socket);
     }
 
     // close(sock_fd);
