@@ -1,9 +1,0 @@
-{
-    "files.associations": {
-        "*.js": "javascript",
-        "stdio.h": "c",
-        "string.h": "c",
-        "stdlib.h": "c",
-        "type_traits": "c"
-    }
-}

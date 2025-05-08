@@ -10,23 +10,57 @@
 #define PORT 4000
 #define BUFFER_SIZE 3000
 
+typedef struct {
+  char *method;
+  char *path;
+} HttpRequest;
+
+// HEAD /home?nigga=gay HTTP/1.1
+// Host: localhost:4000
+// User-Agent: curl/8.5.0
+// Accept: */*
+void parse_headers(char *request_buffer, HttpRequest *request,
+                   int buffer_length) {
+
+  // parse request line
+  char *header_values = strstr(request_buffer, "\r\n");
+  char general_delimiter = ' ';
+  char *start_of_path = strchr(request_buffer, general_delimiter) + 1;
+  char *end_of_path = strchr(start_of_path, general_delimiter);
+  *end_of_path = '\0';
+
+  char *end_of_method = strchr(request_buffer, general_delimiter);
+  *end_of_method = '\0';
+
+  request->method = request_buffer;
+  request->path = start_of_path;
+  printf("method:%s\n", request->method);
+  printf("path:%s\n\n", request->path);
+  printf("header:\n%s\n\n", header_values);
+}
+
 void handle_request(int client_fd) {
 
-  char *buffer = (char *)malloc(BUFFER_SIZE * sizeof(char));
+  char *request_buffer = (char *)malloc(BUFFER_SIZE * sizeof(char));
 
-  ssize_t bytes_received = recv(client_fd, buffer, BUFFER_SIZE, 0);
+  ssize_t bytes_received = recv(client_fd, request_buffer, BUFFER_SIZE, 0);
 
   if (bytes_received < 0) {
     perror("No bytes, mate!");
   }
 
-  char *message = "HTTP/1.1 200 OK\n";
+  HttpRequest request;
 
-  if (buffer != NULL) {
+  char *message = "HTTP/1.1 200 OK\nContent-Type: text/html\r\nUser-Agent: "
+                  "curl\n\n<html><body><h1>Hello, World!</h1></body></html>";
+
+  if (request_buffer != NULL) {
     printf("Request Headers\n");
     printf("------------------------------------------------\n");
-    printf("%s", buffer);
+    printf("%s", request_buffer);
   }
+
+  parse_headers(request_buffer, &request, sizeof(request_buffer));
 
   struct sockaddr_in client_addr2;
 
@@ -39,7 +73,7 @@ void handle_request(int client_fd) {
   } else {
     printf("Response failed to send");
   }
-  free(buffer);
+  free(request_buffer);
   close(client_fd);
 }
 
@@ -55,6 +89,7 @@ int main() {
 
   printf("Listening Socket Created brother!\n");
 
+  // to reuse the port for recompiling purposes
   int opt = 1;
   setsockopt(sock_fd, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt));
 
