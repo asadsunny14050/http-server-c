@@ -39,6 +39,33 @@ void parse_headers(char *request_buffer, HttpRequest *request,
   printf("header:\n%s\n\n", header_values);
 }
 
+ssize_t send_response(HttpRequest *request, int client_fd) {
+  char *requested_path = request->path;
+  char response[BUFFER_SIZE];
+  if (strcmp(requested_path, "/home") == 0) {
+    strncpy(response,
+            "HTTP/1.1 200 OK\r\n\r\n<html><body><h1>This is the Home "
+            "Page</h1></body></html>",
+            BUFFER_SIZE);
+  } else if (strcmp(requested_path, "/about") == 0) {
+    strncpy(response,
+            "HTTP/1.1 200 OK\r\n\r\n<html><body><h1>This is the About "
+            "Page</h1></body></html>",
+            BUFFER_SIZE);
+  } else if (strcmp(requested_path, "/contact") == 0) {
+    strncpy(response,
+            "HTTP/1.1 200 OK\r\n\r\n<html><body><h1>This is the Contact "
+            "Page</h1></body></html>",
+            BUFFER_SIZE);
+  } else {
+    strncpy(response,
+            "HTTP/1.1 404 Not Found\r\n\r\n<html><body><h1>404, Page Not "
+            "Found!</h1></body></html>",
+            BUFFER_SIZE);
+  }
+  return send(client_fd, response, strlen(response), 0);
+}
+
 void handle_request(int client_fd) {
 
   char *request_buffer = (char *)malloc(BUFFER_SIZE * sizeof(char));
@@ -51,9 +78,6 @@ void handle_request(int client_fd) {
 
   HttpRequest request;
 
-  char *message = "HTTP/1.1 200 OK\nContent-Type: text/html\r\nUser-Agent: "
-                  "curl\n\n<html><body><h1>Hello, World!</h1></body></html>";
-
   if (request_buffer != NULL) {
     printf("Request Headers\n");
     printf("------------------------------------------------\n");
@@ -64,7 +88,7 @@ void handle_request(int client_fd) {
 
   struct sockaddr_in client_addr2;
 
-  if (send(client_fd, message, strlen(message), 0) > 0) {
+  if (send_response(&request, client_fd)) {
     printf("Response sent sucessfully\n\n");
     printf("Connection with the client %d is closed\n", client_fd);
     printf("------------------------------------------------\n");
