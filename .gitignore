@@ -1,3 +1,5 @@
 server
 blah 
 a.out
+obj
+*.o

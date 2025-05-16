@@ -7,64 +7,9 @@
 #include <sys/socket.h> // Include POSIX socket library for Linux
 #include <unistd.h>
 
-#define PORT 4000
-#define BUFFER_SIZE 3000
-
-typedef struct {
-  char *method;
-  char *path;
-} HttpRequest;
-
-// HEAD /home?nigga=gay HTTP/1.1
-// Host: localhost:4000
-// User-Agent: curl/8.5.0
-// Accept: */*
-void parse_headers(char *request_buffer, HttpRequest *request,
-                   int buffer_length) {
-
-  // parse request line
-  char *header_values = strstr(request_buffer, "\r\n");
-  char general_delimiter = ' ';
-  char *start_of_path = strchr(request_buffer, general_delimiter) + 1;
-  char *end_of_path = strchr(start_of_path, general_delimiter);
-  *end_of_path = '\0';
-
-  char *end_of_method = strchr(request_buffer, general_delimiter);
-  *end_of_method = '\0';
-
-  request->method = request_buffer;
-  request->path = start_of_path;
-  printf("method:%s\n", request->method);
-  printf("path:%s\n\n", request->path);
-  printf("header:\n%s\n\n", header_values);
-}
-
-ssize_t send_response(HttpRequest *request, int client_fd) {
-  char *requested_path = request->path;
-  char response[BUFFER_SIZE];
-  if (strcmp(requested_path, "/home") == 0) {
-    strncpy(response,
-            "HTTP/1.1 200 OK\r\n\r\n<html><body><h1>This is the Home "
-            "Page</h1></body></html>",
-            BUFFER_SIZE);
-  } else if (strcmp(requested_path, "/about") == 0) {
-    strncpy(response,
-            "HTTP/1.1 200 OK\r\n\r\n<html><body><h1>This is the About "
-            "Page</h1></body></html>",
-            BUFFER_SIZE);
-  } else if (strcmp(requested_path, "/contact") == 0) {
-    strncpy(response,
-            "HTTP/1.1 200 OK\r\n\r\n<html><body><h1>This is the Contact "
-            "Page</h1></body></html>",
-            BUFFER_SIZE);
-  } else {
-    strncpy(response,
-            "HTTP/1.1 404 Not Found\r\n\r\n<html><body><h1>404, Page Not "
-            "Found!</h1></body></html>",
-            BUFFER_SIZE);
-  }
-  return send(client_fd, response, strlen(response), 0);
-}
+#include "../include/common.h"
+#include "../include/request.h"
+#include "../include/response.h"
 
 void handle_request(int client_fd) {
 
@@ -77,6 +22,7 @@ void handle_request(int client_fd) {
   }
 
   HttpRequest request;
+  HttpResponse response;
 
   if (request_buffer != NULL) {
     printf("Request Headers\n");
@@ -86,9 +32,7 @@ void handle_request(int client_fd) {
 
   parse_headers(request_buffer, &request, sizeof(request_buffer));
 
-  struct sockaddr_in client_addr2;
-
-  if (send_response(&request, client_fd)) {
+  if (prepare_response(&request, &response, client_fd)) {
     printf("Response sent sucessfully\n\n");
     printf("Connection with the client %d is closed\n", client_fd);
     printf("------------------------------------------------\n");
