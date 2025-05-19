@@ -2,10 +2,58 @@
 #include "../include/request.h"
 
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #include <sys/socket.h>
+#include <sys/stat.h>
 
 #include "../include/common.h"
+
+int read_html_file(HttpRequest *request, HttpResponse *response) {
+
+  char file_path[30];
+
+  if (strcmp(request->path, "/home") == 0 || strcmp(request->path, "/") == 0) {
+    strncpy(file_path, "./assets/index.html", 30);
+  } else {
+    snprintf(file_path, 30, "./assets%s.html", request->path);
+  }
+
+  FILE *file_to_read = fopen(file_path, "r");
+  printf("Filename: %s\n", file_path);
+
+  if (!file_to_read) {
+    perror("failed to load the file you have given");
+    response->status_code = 500;
+    return -1;
+  }
+  printf("html file opened, sire!\n");
+
+  struct stat file_statbuf;
+  if (fstat(fileno(file_to_read), &file_statbuf) != 0) {
+    perror("faild to get the file information of the html file, sire!\n");
+    fclose(file_to_read);
+    response->status_code = 500;
+    return -1;
+  }
+
+  size_t required_file_size = file_statbuf.st_size;
+  // remember to free this
+  char *response_buffer = (char *)malloc(required_file_size);
+
+  size_t bytes_read =
+      fread(response_buffer, 1, required_file_size, file_to_read);
+  if (bytes_read != required_file_size) {
+    perror("fread failed");
+    fclose(file_to_read);
+    response->status_code = 500;
+    return -1;
+  }
+  response->body = response_buffer;
+  response->body[required_file_size] = '\0';
+  printf("reading successful, sire!\n");
+  return 0;
+}
 
 ssize_t prepare_response(HttpRequest *request, HttpResponse *response,
                          int client_fd) {
@@ -28,23 +76,33 @@ ssize_t prepare_response(HttpRequest *request, HttpResponse *response,
     if (strcmp(requested_path, routes[i]) == 0 &&
         strcmp(requested_method, "GET") == 0) {
       response->status_code = 200;
-      snprintf(response->body, BUFFER_SIZE,
-               "<html><body><h1>This is the %s Page</h1></body></html>",
-               routes[i]);
-      response->content_length = strlen(response->body);
+      if (read_html_file(request, response) == 0) {
+        response->content_length = strlen(response->body);
+      }
       break;
     }
   }
 
   if (response->status_code == 401) {
-    strncpy(response->body,
+    char *error_body = (char *)malloc(BUFFER_SIZE);
+    strncpy(error_body,
             "<html><body><h1>404, Page not found!</h1></body></html>",
             BUFFER_SIZE);
+    response->body = error_body;
     response->content_length = strlen(response->body);
   }
 
-  char response_buffer[2 * BUFFER_SIZE];
-  snprintf(response_buffer, (2 * BUFFER_SIZE),
+  if (response->status_code == 500) {
+    char *error_body = (char *)malloc(BUFFER_SIZE);
+    strncpy(error_body,
+            "<html><body><h1>Internal Server Error!</h1></body></html>",
+            BUFFER_SIZE);
+    response->body = error_body;
+    response->content_length = strlen(response->body);
+  }
+
+  char response_buffer[BUFFER_SIZE + sizeof(response->body)];
+  snprintf(response_buffer, (BUFFER_SIZE + sizeof(response->body)),
            "HTTP/1.1 %d OK\r\n"
            "Content-Type: %s\r\n"
            "Content-Length: %zu\r\n"
@@ -54,5 +112,6 @@ ssize_t prepare_response(HttpRequest *request, HttpResponse *response,
            response->status_code, response->content_type,
            response->content_length, SERVER, response->body);
 
+  free(response->body);
   return send(client_fd, response_buffer, strlen(response_buffer), 0);
 }
