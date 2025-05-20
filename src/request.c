@@ -18,7 +18,9 @@ void parse_headers(char *request_buffer, HttpRequest *request,
 
   request->method = request_buffer;
   request->path = start_of_path;
-  printf("method:%s\n", request->method);
-  printf("path:%s\n\n", request->path);
-  printf("header:\n%s\n\n", header_values);
+  // printf("Successfully Parsed Headers:\n");
+  // printf("method:%s\n", request->method);
+  // printf("path:%s\n", request->path);
+  // printf("header:\n%s\n", header_values);
+  // printf("------------------------------------------------\n");
 }

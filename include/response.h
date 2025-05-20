@@ -10,4 +10,4 @@ typedef struct {
 } HttpResponse;
 
 ssize_t prepare_response(HttpRequest *request, HttpResponse *response,
-                         int client_fd);
+                         int client_fd, int client_id);

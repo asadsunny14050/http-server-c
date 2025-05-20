@@ -11,35 +11,50 @@
 #include "../include/request.h"
 #include "../include/response.h"
 
-void handle_request(int client_fd) {
+void handle_request(int client_fd, int client_id) {
 
   char *request_buffer = (char *)malloc(BUFFER_SIZE * sizeof(char));
 
   ssize_t bytes_received = recv(client_fd, request_buffer, BUFFER_SIZE, 0);
 
   if (bytes_received < 0) {
-    perror("No bytes, mate!");
+    printf("\e[%sm[ERROR] [Client%d] No bytes received, sire!\e[0m\n",
+           LOG_ERROR, client_id);
   }
 
   HttpRequest request;
   HttpResponse response;
 
   if (request_buffer != NULL) {
-    printf("Request Headers\n");
-    printf("------------------------------------------------\n");
-    printf("%s", request_buffer);
+    // implement timeout bruh
+    // printf("------------------------------------------------\n");
+    // printf("\e[%sm[DEBUG] [Client:%d] Request Headers\e[0m\n", LOG_DEBUG,
+    //        client_id);
+    // printf("\e[%sm[DEBUG] [Client:%d] %s\e[0m\n", LOG_DEBUG, client_id,
+    //        request_buffer);
   }
 
   parse_headers(request_buffer, &request, sizeof(request_buffer));
 
-  if (prepare_response(&request, &response, client_fd)) {
-    printf("Response sent sucessfully\n\n");
-    printf("Connection with the client %d is closed\n", client_fd);
-    printf("------------------------------------------------\n");
-    printf("------------------------------------------------\n\n");
-    printf("Listening for more clients....\n\n");
+  if (prepare_response(&request, &response, client_fd, client_id)) {
+    if (response.status_code != 200) {
+      printf("\e[%sm[ERROR] [Client:%d] [%d] Response sent successfully\e[0m\n",
+             LOG_ERROR, client_id, response.status_code);
+    } else {
+      printf(
+          "\e[%sm[SUCCESS] [Client:%d] [%d] Response sent successfully\e[0m\n",
+          LOG_SUCCESS, client_id, response.status_code);
+    }
+    // printf("------------------------------------------------\n");
+    printf(
+        "\e[%sm[USER] [Client:%d] Connection with the Client is closed\e[0m\n",
+        LOG_USER_INFO, client_id);
+    // printf("------------------------------------------------\n");
+    printf("\e[%sm[INFO] Listening for more clients...\e[0m\n", LOG_INFO);
   } else {
-    printf("Response failed to send");
+    printf("\e[%sm[ERROR] [Client%d] Response failed to send, sire! Closing "
+           "Connection Anyway\e[0m\n",
+           LOG_ERROR, client_id);
   }
   free(request_buffer);
   close(client_fd);
@@ -55,7 +70,7 @@ int main() {
     return -1;
   }
 
-  printf("Listening Socket Created brother!\n");
+  printf("\e[%sm[INFO] Listening Socket Created, sire!\e[0m\n", LOG_INFO);
 
   // to reuse the port for recompiling purposes
   int opt = 1;
@@ -69,10 +84,12 @@ int main() {
 
   if (bind(sock_fd, (const struct sockaddr *)&serv_info, sizeof(serv_info)) <
       0) {
-    perror("Error binding, mate!");
+    perror("Error binding, sire!");
     return -1;
   }
-  printf("Binding the socket to port and ip successful brother!\n");
+  printf("\e[%sm[INFO] Binding port and ip successful "
+         "sire!\e[0m\n",
+         LOG_INFO);
 
   int connections_queue = 5;
 
@@ -80,9 +97,9 @@ int main() {
     perror("Somehow cannot listen, mate!");
     return -1;
   }
-  printf("listening on Port %d....\n", PORT);
 
-  printf("Waiting for a client to connect...\n\n");
+  printf("\e[%sm[INFO] Server Listening on Port %d....\e[0m\n", LOG_INFO, PORT);
+  printf("\e[%sm[INFO] Waiting for a client to connect...\e[0m\n", LOG_INFO);
 
   // infinite loop for keep taking client connections
   while (1) {
@@ -92,28 +109,24 @@ int main() {
     int client_socket = accept(sock_fd, NULL, NULL);
 
     if (client_socket < 0) {
-      perror("Cannot establish connection with client, mate!");
+      printf(
+          "\e[%sm[ERROR] Cannot establish connection with client, mate!\e[0m\n",
+          LOG_ERROR);
       return -1;
     }
-
-    printf("------------------------------------------------\n");
-    printf("------------------------------------------------\n");
-    printf("A client is with socket number %d is connected\n\n", client_socket);
 
     if (getpeername(client_socket, (struct sockaddr *)&client_addr,
                     &client_addrlen) < 0) {
       printf("error: %s\n", strerror(errno));
     }
 
-    char *clientaddrpresn = inet_ntoa(client_addr.sin_addr);
+    // char *clientaddrpresn = inet_ntoa(client_addr.sin_addr);
+    // printf("------------------------------------------------\n");
+    printf("\e[%sm[SUCCESS] [Client:%d] A Client is connected\e[0m\n",
+           LOG_SUCCESS, ntohs(client_addr.sin_port));
+    // printf("------------------------------------------------\n");
 
-    printf("Client information\n");
-    printf("------------------------------------------------\n");
-    printf("Client Address Family: %d\n", client_addr.sin_family);
-    printf("Client Port: %d\n", ntohs(client_addr.sin_port));
-    printf("Client IP Address: %s\n\n", clientaddrpresn);
-
-    handle_request(client_socket);
+    handle_request(client_socket, ntohs(client_addr.sin_port));
   }
 
   close(sock_fd);

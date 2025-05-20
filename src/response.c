@@ -9,7 +9,8 @@
 
 #include "../include/common.h"
 
-int read_html_file(HttpRequest *request, HttpResponse *response) {
+int read_html_file(HttpRequest *request, HttpResponse *response,
+                   int client_id) {
 
   char file_path[30];
 
@@ -20,18 +21,24 @@ int read_html_file(HttpRequest *request, HttpResponse *response) {
   }
 
   FILE *file_to_read = fopen(file_path, "r");
-  printf("Filename: %s\n", file_path);
+  printf("\e[%sm[USER] [Client:%d] Requested Resource Path: %s\e[0m\n",
+         LOG_USER_INFO, client_id, file_path);
 
   if (!file_to_read) {
-    perror("failed to load the file you have given");
+    printf("\e[%sm[ERROR] [Client%d] Failed to load the file that has been "
+           "given\e[0m\n",
+           LOG_ERROR, client_id);
     response->status_code = 500;
     return -1;
   }
-  printf("html file opened, sire!\n");
+  printf("\e[%sm[USER] [Client:%d] Requested HTML file opened, sire!\e[0m\n",
+         LOG_USER_INFO, client_id);
 
   struct stat file_statbuf;
   if (fstat(fileno(file_to_read), &file_statbuf) != 0) {
-    perror("faild to get the file information of the html file, sire!\n");
+    printf("\e[%sm[ERROR] [Client%d] Failed to get the file information of the "
+           "file\e[0m\n",
+           LOG_ERROR, client_id);
     fclose(file_to_read);
     response->status_code = 500;
     return -1;
@@ -44,19 +51,21 @@ int read_html_file(HttpRequest *request, HttpResponse *response) {
   size_t bytes_read =
       fread(response_buffer, 1, required_file_size, file_to_read);
   if (bytes_read != required_file_size) {
-    perror("fread failed");
+    printf("\e[%sm[ERROR] [Client%d] Read Operation failed, sire!\e[0m\n",
+           LOG_ERROR, client_id);
     fclose(file_to_read);
     response->status_code = 500;
     return -1;
   }
   response->body = response_buffer;
   response->body[required_file_size] = '\0';
-  printf("reading successful, sire!\n");
+  printf("\e[%sm[USER] [Client:%d] File Read is successful, sire!\e[0m\n",
+         LOG_USER_INFO, client_id);
   return 0;
 }
 
 ssize_t prepare_response(HttpRequest *request, HttpResponse *response,
-                         int client_fd) {
+                         int client_fd, int client_id) {
 
   char *requested_path = request->path;
   char *requested_method = request->method;
@@ -76,7 +85,7 @@ ssize_t prepare_response(HttpRequest *request, HttpResponse *response,
     if (strcmp(requested_path, routes[i]) == 0 &&
         strcmp(requested_method, "GET") == 0) {
       response->status_code = 200;
-      if (read_html_file(request, response) == 0) {
+      if (read_html_file(request, response, client_id) == 0) {
         response->content_length = strlen(response->body);
       }
       break;
@@ -110,7 +119,7 @@ ssize_t prepare_response(HttpRequest *request, HttpResponse *response,
            "\r\n"
            "%s",
            response->status_code, response->content_type,
-           response->content_length, SERVER, response->body);
+           response->content_length, SERVER_NAME, response->body);
 
   free(response->body);
   return send(client_fd, response_buffer, strlen(response_buffer), 0);
