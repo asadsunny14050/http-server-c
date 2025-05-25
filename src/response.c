@@ -1,5 +1,6 @@
 #include "../include/response.h"
 #include "../include/request.h"
+#include "../include/utils.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -21,24 +22,22 @@ int read_html_file(HttpRequest *request, HttpResponse *response,
   }
 
   FILE *file_to_read = fopen(file_path, "r");
-  printf("\e[%sm[USER] [Client:%d] Requested Resource Path: %s\e[0m\n",
-         LOG_USER_INFO, client_id, file_path);
+  log_to_debug(&logs.debug, "Requested Resource Path: %s", file_path,
+               client_id);
 
   if (!file_to_read) {
-    printf("\e[%sm[ERROR] [Client%d] Failed to load the file that has been "
-           "given\e[0m\n",
-           LOG_ERROR, client_id);
+    log_to_console(&logs.error, "Failed to load the file that has been given",
+                   0, client_id);
     response->status_code = 500;
     return -1;
   }
-  printf("\e[%sm[USER] [Client:%d] Requested HTML file opened, sire!\e[0m\n",
-         LOG_USER_INFO, client_id);
 
+  log_to_console(&logs.user, "Requested HTML file opened, sire!", 0, client_id);
   struct stat file_statbuf;
   if (fstat(fileno(file_to_read), &file_statbuf) != 0) {
-    printf("\e[%sm[ERROR] [Client%d] Failed to get the file information of the "
-           "file\e[0m\n",
-           LOG_ERROR, client_id);
+    log_to_console(&logs.error,
+                   "Failed to get the file information of the file", 0,
+                   client_id);
     fclose(file_to_read);
     response->status_code = 500;
     return -1;
@@ -51,16 +50,14 @@ int read_html_file(HttpRequest *request, HttpResponse *response,
   size_t bytes_read =
       fread(response_buffer, 1, required_file_size, file_to_read);
   if (bytes_read != required_file_size) {
-    printf("\e[%sm[ERROR] [Client%d] Read Operation failed, sire!\e[0m\n",
-           LOG_ERROR, client_id);
+    log_to_console(&logs.error, "Read Operation faild, sire!", 0, client_id);
     fclose(file_to_read);
     response->status_code = 500;
     return -1;
   }
   response->body = response_buffer;
   response->body[required_file_size] = '\0';
-  printf("\e[%sm[USER] [Client:%d] File Read is successful, sire!\e[0m\n",
-         LOG_USER_INFO, client_id);
+  log_to_console(&logs.user, "File Read is successful, sire!", 0, client_id);
   return 0;
 }
 

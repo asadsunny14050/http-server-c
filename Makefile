@@ -1,7 +1,7 @@
 CC = gcc 
 CFLAGS = -Wall -Wextra
 
-SRCS = src/main.c src/request.c src/response.c 
+SRCS = src/main.c src/request.c src/response.c src/utils.c
 
 TARGET = server
 

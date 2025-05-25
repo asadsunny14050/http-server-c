@@ -6,7 +6,7 @@
 
 #define LOG_ERROR "31"
 #define LOG_INFO "32"
-#define LOG_WARNING "36"
-#define LOG_SUCCESS "35"
 #define LOG_DEBUG "33"
 #define LOG_USER_INFO "34"
+#define LOG_SUCCESS "35"
+#define LOG_WARNING "36"
