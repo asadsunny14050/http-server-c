@@ -34,7 +34,9 @@ int read_html_file(HttpRequest *request, HttpResponse *response,
 
   log_to_console(&logs.user, "Requested HTML file opened, sire!", 0, client_id);
   struct stat file_statbuf;
-  if (fstat(fileno(file_to_read), &file_statbuf) != 0) {
+  int stat_result = fstat(fileno(file_to_read), &file_statbuf);
+
+  if (stat_result < 0) {
     log_to_console(&logs.error,
                    "Failed to get the file information of the file", 0,
                    client_id);
@@ -58,6 +60,7 @@ int read_html_file(HttpRequest *request, HttpResponse *response,
   response->body = response_buffer;
   response->body[required_file_size] = '\0';
   log_to_console(&logs.user, "File Read is successful, sire!", 0, client_id);
+  fclose(file_to_read);
   return 0;
 }
 
@@ -99,15 +102,14 @@ ssize_t prepare_response(HttpRequest *request, HttpResponse *response,
   }
 
   if (response->status_code == 500) {
-    char *error_body = (char *)malloc(BUFFER_SIZE);
-    strncpy(error_body,
+    response->body = (char *)malloc(BUFFER_SIZE);
+    strncpy(response->body,
             "<html><body><h1>Internal Server Error!</h1></body></html>",
             BUFFER_SIZE);
-    response->body = error_body;
     response->content_length = strlen(response->body);
   }
 
-  char response_buffer[BUFFER_SIZE + sizeof(response->body)];
+  char *response_buffer = (char *)malloc(BUFFER_SIZE + sizeof(response->body));
   snprintf(response_buffer, (BUFFER_SIZE + sizeof(response->body)),
            "HTTP/1.1 %d OK\r\n"
            "Content-Type: %s\r\n"
@@ -119,5 +121,20 @@ ssize_t prepare_response(HttpRequest *request, HttpResponse *response,
            response->content_length, SERVER_NAME, response->body);
 
   free(response->body);
-  return send(client_fd, response_buffer, strlen(response_buffer), 0);
+
+  // make sure all the bytes get sent to the client even in chunks if necessary
+  size_t total_to_send = strlen(response_buffer);
+  size_t total_sent = 0;
+  while (total_sent < total_to_send) {
+    ssize_t bytes_sent = send(client_fd, response_buffer + total_sent,
+                              total_to_send - total_sent, 0);
+    if (bytes_sent < 0) {
+      free(response_buffer);
+      return -1;
+    }
+    total_sent = total_sent + bytes_sent;
+  }
+
+  free(response_buffer);
+  return 0;
 }

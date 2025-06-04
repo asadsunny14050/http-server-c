@@ -10,3 +10,5 @@
 #define LOG_USER_INFO "34"
 #define LOG_SUCCESS "35"
 #define LOG_WARNING "36"
+
+#define THREAD_POOL_SIZE 5

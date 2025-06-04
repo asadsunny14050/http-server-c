@@ -1,6 +1,7 @@
 #include <arpa/inet.h> // Include for inet_addr and other functions
 #include <errno.h>
 #include <netinet/in.h> // Include for sockaddr_in structure
+#include <pthread.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -12,52 +13,9 @@
 #include "../include/response.h"
 #include "../include/utils.h"
 
-void handle_request(int client_fd, int client_id) {
+pthread_t THREAD_POOL[THREAD_POOL_SIZE];
 
-  char *request_buffer = (char *)malloc(BUFFER_SIZE * sizeof(char));
-
-  ssize_t bytes_received = recv(client_fd, request_buffer, BUFFER_SIZE, 0);
-
-  if (bytes_received < 0) {
-    log_to_console(&logs.error, "No bytes received, sire!", 0, client_id);
-  }
-
-  if (request_buffer != NULL) {
-    // implement timeout bruh
-    // printf("------------------------------------------------\n");
-    // printf("\e[%sm[DEBUG] [Client:%d] Request Headers\e[0m\n", LOG_DEBUG,
-    //        client_id);
-    // printf("\e[%sm[DEBUG] [Client:%d] %s\e[0m\n", LOG_DEBUG, client_id,
-    //        request_buffer);
-  }
-
-  HttpRequest request;
-  HttpResponse response;
-
-  parse_headers(request_buffer, &request, sizeof(request_buffer));
-
-  if (prepare_response(&request, &response, client_fd, client_id)) {
-    if (response.status_code != 200) {
-      log_to_console(&logs.error, "[%d] Response sent successfully",
-                     response.status_code, client_id);
-    } else {
-      log_to_console(&logs.success, "[%d] Response sent successfully",
-                     response.status_code, client_id);
-    }
-    log_to_console(&logs.user, "Connection with the Client is closed", 0,
-                   client_id);
-  } else {
-    log_to_console(&logs.error,
-                   "Response failed to send, sire! Closing Connection Anyway",
-                   0, client_id);
-  }
-  printf("------------------------------------------------\n");
-  free(request_buffer);
-  close(client_fd);
-  log_to_console(&logs.info, "Listening for more clients...", 0, 0);
-}
-
-int main() {
+int init_server(struct sockaddr_in *serv_info) {
 
   int sock_fd = socket(AF_INET, SOCK_STREAM, 0);
 
@@ -72,13 +30,11 @@ int main() {
   int opt = 1;
   setsockopt(sock_fd, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt));
 
-  struct sockaddr_in serv_info;
+  serv_info->sin_family = AF_INET;
+  serv_info->sin_port = htons(PORT);
+  serv_info->sin_addr.s_addr = htonl(INADDR_ANY);
 
-  serv_info.sin_family = AF_INET;
-  serv_info.sin_port = htons(PORT);
-  serv_info.sin_addr.s_addr = htonl(INADDR_ANY);
-
-  if (bind(sock_fd, (const struct sockaddr *)&serv_info, sizeof(serv_info)) <
+  if (bind(sock_fd, (const struct sockaddr *)serv_info, sizeof(*serv_info)) <
       0) {
 
     log_to_console(&logs.error, "Error binding, sire!", 0, 0);
@@ -86,7 +42,7 @@ int main() {
   }
 
   log_to_console(&logs.info, "Binding port and ip successful, sire!", 0, 0);
-  int connections_queue = 5;
+  int connections_queue = 256;
 
   if (listen(sock_fd, connections_queue) < 0) {
     log_to_console(&logs.error, "Cannot listen somehow, sire!", 0, 0);
@@ -96,12 +52,27 @@ int main() {
   log_to_console(&logs.info, "Server Listening on Port %d.... ", PORT, 0);
   log_to_console(&logs.info, "Waiting for a client to connect.... ", 0, 0);
 
+  return sock_fd;
+}
+
+int main() {
+
+  struct sockaddr_in serv_info;
+
+  int sock_fd = init_server(&serv_info);
+  if (sock_fd < 0) {
+
+    log_to_console(&logs.error, "Error initializing server, sire!", 0, 0);
+    exit(1);
+  }
+
   // infinite loop for keep taking client connections
   while (1) {
     struct sockaddr_in client_addr;
     socklen_t client_addrlen = sizeof(client_addr);
 
-    int client_socket = accept(sock_fd, 0, 0);
+    int client_socket =
+        accept(sock_fd, (struct sockaddr *)&client_addr, &client_addrlen);
 
     if (client_socket < 0) {
       log_to_console(&logs.error,
@@ -118,8 +89,14 @@ int main() {
     log_to_console(&logs.success, "A Client is connected", 0,
                    ntohs(client_addr.sin_port));
 
-    printf("calling handle_request\n");
-    handle_request(client_socket, ntohs(client_addr.sin_port));
+    pthread_t thread;
+    int *p_client = malloc(2 * sizeof(int));
+    p_client[0] = client_socket;
+    p_client[1] = ntohs(client_addr.sin_port);
+
+    pthread_create(&thread, NULL, handle_request, p_client);
+
+    log_to_console(&logs.info, "Listening for more clients...", 0, 0);
   }
 
   close(sock_fd);

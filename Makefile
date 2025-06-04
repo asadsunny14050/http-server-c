@@ -1,11 +1,9 @@
 CC = gcc 
-CFLAGS = -Wall -Wextra
+CFLAGS = -Wall -Wextra -g
 
 SRCS = src/main.c src/request.c src/response.c src/utils.c
 
-TARGET = server
-
-# all: $(TARGET)
+TARGET = csaw-server
 
 all: $(SRCS)
 	$(CC) $(CFLAGS) $(SRCS) -o $(TARGET)

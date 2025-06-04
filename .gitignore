@@ -1,7 +1,9 @@
 server
+csaw-server
 playground
 playground.c
 blah 
 a.out
 obj
 *.o
+.idea

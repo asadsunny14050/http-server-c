@@ -1,6 +1,7 @@
 #include "../include/utils.h"
 #include "../include/response.h"
 #include <string.h>
+
 const LOGS logs = {{"ERROR", "31"}, {"INFO", "32"},    {"DEBUG", "33"},
                    {"USER", "37"},  {"SUCCESS", "34"}, {"WARNING", "36"}};
 
