@@ -1,7 +1,7 @@
 CC = gcc 
 CFLAGS = -Wall -Wextra -g
 
-SRCS = src/main.c src/request.c src/response.c src/utils.c
+SRCS = src/main.c src/request.c src/response.c src/queue-ds.c src/utils.c
 
 TARGET = csaw-server
 

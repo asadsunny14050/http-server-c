@@ -1,5 +1,6 @@
 #include "../include/request.h"
 #include "../include/common.h"
+#include "../include/queue-ds.h"
 #include "../include/response.h"
 #include "../include/utils.h"
 #include <pthread.h>
@@ -32,18 +33,16 @@ void parse_headers(char *request_buffer, HttpRequest *request,
   // printf("------------------------------------------------\n");
 }
 
-void *handle_request(void *p_client) {
+void *handle_request(Node *p_client) {
 
-  int *client = (int *)p_client;
-  int client_fd = client[0];
-  int client_id = client[1];
+  int client_fd = p_client->client_fd;
+  int client_id = p_client->client_id;
   free(p_client);
   pthread_t self_id = pthread_self();
-  log_to_console(&logs.info, "Handling Client's Request with Thread:%d",
-                 self_id, client_id);
+  log_to_console(&logs.info, "Thread:%d is handling this client", self_id,
+                 client_id);
 
   char *request_buffer = (char *)malloc(BUFFER_SIZE * sizeof(char));
-  sleep(5);
 
   ssize_t bytes_received = 0;
   bytes_received = recv(client_fd, request_buffer, BUFFER_SIZE, 0);

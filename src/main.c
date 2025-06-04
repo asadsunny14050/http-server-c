@@ -9,11 +9,36 @@
 #include <unistd.h>
 
 #include "../include/common.h"
+#include "../include/queue-ds.h"
 #include "../include/request.h"
 #include "../include/response.h"
 #include "../include/utils.h"
 
 pthread_t THREAD_POOL[THREAD_POOL_SIZE];
+Queue WORK_QUEUE = {0};
+pthread_mutex_t lock = PTHREAD_MUTEX_INITIALIZER;
+pthread_cond_t condition_var = PTHREAD_COND_INITIALIZER;
+
+void *single_thread_lifetime(void *arg) {
+  while (1) {
+
+    Node *p_client;
+
+    pthread_mutex_lock(&lock);
+
+    p_client = dequeue(&WORK_QUEUE);
+    if (p_client == NULL) {
+      pthread_cond_wait(&condition_var, &lock);
+      p_client = dequeue(&WORK_QUEUE);
+    }
+    print_queue(WORK_QUEUE.head);
+
+    pthread_mutex_unlock(&lock);
+    if (p_client != NULL) {
+      handle_request(p_client);
+    }
+  }
+}
 
 int init_server(struct sockaddr_in *serv_info) {
 
@@ -47,6 +72,15 @@ int init_server(struct sockaddr_in *serv_info) {
   if (listen(sock_fd, connections_queue) < 0) {
     log_to_console(&logs.error, "Cannot listen somehow, sire!", 0, 0);
     return -1;
+  }
+
+  log_to_console(&logs.info,
+                 "Employing %d threads for the workload as commanded, sire!",
+                 THREAD_POOL_SIZE, 0);
+  for (int i = 0; i < THREAD_POOL_SIZE; i++) {
+
+    log_to_console(&logs.info, "Spinning Thread %d", i, 0);
+    pthread_create(&THREAD_POOL[i], NULL, single_thread_lifetime, NULL);
   }
 
   log_to_console(&logs.info, "Server Listening on Port %d.... ", PORT, 0);
@@ -89,14 +123,22 @@ int main() {
     log_to_console(&logs.success, "A Client is connected", 0,
                    ntohs(client_addr.sin_port));
 
-    pthread_t thread;
-    int *p_client = malloc(2 * sizeof(int));
-    p_client[0] = client_socket;
-    p_client[1] = ntohs(client_addr.sin_port);
+    // int *p_client = malloc(2 * sizeof(int));
+    // p_client[0] = client_socket;
+    // p_client[1] = ntohs(client_addr.sin_port);
+    pthread_mutex_lock(&lock);
+    if (enqueue(&WORK_QUEUE, client_socket, ntohs(client_addr.sin_port)) < 0) {
 
-    pthread_create(&thread, NULL, handle_request, p_client);
+      printf("failed to add to the queue, sire!\n");
+    };
+    printf("printing after enqueiing");
+    print_queue(WORK_QUEUE.head);
+    pthread_cond_signal(&condition_var);
+    pthread_mutex_unlock(&lock);
 
-    log_to_console(&logs.info, "Listening for more clients...", 0, 0);
+    // pthread_create(&thread, NULL, handle_request, p_client);
+
+    // log_to_console(&logs.info, "Listening for more clients...", 0, 0);
   }
 
   close(sock_fd);
