@@ -1,13 +1,9 @@
 #pragma once
 
 #include "queue-ds.h"
+#include "response.h"
 
-typedef struct {
-  char *method;
-  char *path;
-} HttpRequest;
-
-void parse_headers(char *request_buffer, HttpRequest *request,
-                   int buffer_length);
+int parse_headers(char *request_buffer, HttpRequest *request,
+                  HttpResponse *response);
 
 void *handle_request(Node *p_client);

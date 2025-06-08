@@ -50,9 +50,6 @@ void seed_queue(Queue *queue) {
 
 void print_queue(Node *head) {
   Node *tmp = head;
-  if (tmp == NULL) {
-    printf("Queue's empty, sire!\n");
-  }
   while (tmp != NULL) {
     if (tmp == head) {
 

@@ -6,6 +6,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/socket.h> // Include POSIX socket library for Linux
+#include <sys/time.h>
 #include <unistd.h>
 
 #include "../include/common.h"
@@ -14,12 +15,17 @@
 #include "../include/response.h"
 #include "../include/utils.h"
 
+// pool of threads
 pthread_t THREAD_POOL[THREAD_POOL_SIZE];
-Queue WORK_QUEUE = {0};
 pthread_mutex_t lock = PTHREAD_MUTEX_INITIALIZER;
 pthread_cond_t condition_var = PTHREAD_COND_INITIALIZER;
 
-void *single_thread_lifetime(void *arg) {
+// keeps track of all the accepted connections from different clients,
+// waiting to be handled by one of the threads
+Queue WORK_QUEUE = {0};
+
+void *single_thread_lifetime() {
+
   while (1) {
 
     Node *p_client;
@@ -31,9 +37,9 @@ void *single_thread_lifetime(void *arg) {
       pthread_cond_wait(&condition_var, &lock);
       p_client = dequeue(&WORK_QUEUE);
     }
-    print_queue(WORK_QUEUE.head);
 
     pthread_mutex_unlock(&lock);
+
     if (p_client != NULL) {
       handle_request(p_client);
     }
@@ -75,11 +81,20 @@ int init_server(struct sockaddr_in *serv_info) {
   }
 
   log_to_console(&logs.info,
-                 "Employing %d threads for the workload as commanded, sire!",
+                 "Provisioning %d threads for the workload as commanded, sire!",
                  THREAD_POOL_SIZE, 0);
+  printf("[Spinning Threads]: ");
   for (int i = 0; i < THREAD_POOL_SIZE; i++) {
 
-    log_to_console(&logs.info, "Spinning Thread %d", i, 0);
+    if (i == THREAD_POOL_SIZE - 1) {
+
+      printf("#\n");
+    } else {
+      printf("#");
+    }
+
+    fflush(stdout);
+    usleep(500);
     pthread_create(&THREAD_POOL[i], NULL, single_thread_lifetime, NULL);
   }
 
@@ -94,6 +109,7 @@ int main() {
   struct sockaddr_in serv_info;
 
   int sock_fd = init_server(&serv_info);
+
   if (sock_fd < 0) {
 
     log_to_console(&logs.error, "Error initializing server, sire!", 0, 0);
@@ -111,7 +127,7 @@ int main() {
     if (client_socket < 0) {
       log_to_console(&logs.error,
                      "Cannot establish connection with client, sire!", 0, 0);
-      return -1;
+      continue;
     }
 
     if (getpeername(client_socket, (struct sockaddr *)&client_addr,
@@ -131,7 +147,6 @@ int main() {
 
       printf("failed to add to the queue, sire!\n");
     };
-    printf("printing after enqueiing");
     print_queue(WORK_QUEUE.head);
     pthread_cond_signal(&condition_var);
     pthread_mutex_unlock(&lock);

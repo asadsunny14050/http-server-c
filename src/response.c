@@ -69,7 +69,7 @@ ssize_t prepare_response(HttpRequest *request, HttpResponse *response,
 
   char *requested_path = request->path;
   char *requested_method = request->method;
-  response->status_code = 401;
+  response->status_code = 404;
   strncpy(response->content_type, "text/html", 30);
 
   char *routes[] = {
@@ -92,7 +92,7 @@ ssize_t prepare_response(HttpRequest *request, HttpResponse *response,
     }
   }
 
-  if (response->status_code == 401) {
+  if (response->status_code == 404) {
     char *error_body = (char *)malloc(BUFFER_SIZE);
     strncpy(error_body,
             "<html><body><h1>404, Page not found!</h1></body></html>",
