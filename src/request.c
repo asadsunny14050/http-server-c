@@ -12,7 +12,8 @@
 #include <sys/socket.h>
 #include <unistd.h>
 
-bool match_header(char *header_key, char *header_value, HttpRequest *request) {
+bool match_and_set_header(char *header_key, char *header_value,
+                          HttpRequest *request) {
 
   // convert all the characters of header-key to lowerbcase due to case
   // insensitivity
@@ -22,86 +23,78 @@ bool match_header(char *header_key, char *header_value, HttpRequest *request) {
 
   if (strcmp(header_key, "host") == 0) {
 
-    printf("Value: %s\n", header_value);
     request->host = header_value;
     return true;
-
   } else if (strcmp(header_key, "content-length") == 0) {
 
-    printf("Value: %s\n", header_value);
     request->content_length = atoi(header_value);
-
     return true;
   } else if (strcmp(header_key, "content-type") == 0) {
 
-    printf("Value: %s\n", header_value);
     request->content_type = header_value;
-
     return true;
   } else {
 
-    printf("Unwanted Header key.\n");
     return false;
   }
 }
 
 int parse_request(char *request_buffer, HttpRequest *request,
-                  HttpResponse *response) {
-
-  printf("%s", request_buffer);
-  int buffer_length = strlen(request_buffer);
-  for (int i = 0; i < buffer_length; i++) {
-    if (request_buffer[i] == '\r') {
-      printf("\\r");
-    } else if (request_buffer[i] == '\n') {
-      printf("\\n\n");
-    } else {
-
-      printf("%c", request_buffer[i]);
-    }
-  }
-  printf("\n");
+                  HttpResponse *response, int client_fd) {
 
   // the header key-value pair starts here minus the request line
-  char *header_start_pointer = strstr(request_buffer, "\r\n") + 1;
-  char *header_end_pointer = strstr(request_buffer, "\r\n\r\n") + 1;
-  if (header_end_pointer == NULL) {
-    // return bad request;
-    goto early_return_routine;
+  char *header_start_pointer = strstr(request_buffer, "\r\n");
+  if (header_start_pointer == NULL) {
+    goto bad_request;
   }
+  header_start_pointer++;
+
+  char *header_end_pointer = strstr(request_buffer, "\r\n\r\n");
+  if (header_end_pointer == NULL) {
+    goto bad_request;
+  }
+  header_end_pointer += 3;
 
   // parse request line
   char general_delimiter = ' ';
   char *start_of_path = strchr(request_buffer, general_delimiter);
   if (start_of_path == NULL) {
-    goto early_return_routine;
+    goto bad_request;
   }
   start_of_path++;
 
   char *end_of_path = strchr(start_of_path, general_delimiter);
   if (end_of_path == NULL) {
-    goto early_return_routine;
+    goto bad_request;
   }
   *end_of_path = '\0';
 
   char *end_of_method = strchr(request_buffer, general_delimiter);
   if (end_of_method == NULL) {
-    goto early_return_routine;
+    goto bad_request;
   }
   *end_of_method = '\0';
 
   request->method = request_buffer;
   request->path = start_of_path;
 
-  // parse headers
-  printf("the tokens: \n");
-  int token_line = 1;
-  char *token = strtok(header_start_pointer, "\r\n");
-  while (token != NULL) {
+  char *token = NULL;
+
+  while ((token = strtok_r(header_start_pointer, "\r\n",
+                           &header_start_pointer)) != NULL) {
+
+    if (token == header_end_pointer + 1) {
+      request->body = token;
+      break;
+    }
+
+    if (token == NULL) {
+      goto bad_request;
+    }
 
     char *terminate_key = strchr(token, ':');
     if (terminate_key == NULL) {
-      goto early_return_routine;
+      goto bad_request;
     }
     *terminate_key = '\0';
 
@@ -109,23 +102,37 @@ int parse_request(char *request_buffer, HttpRequest *request,
     while (*value_start == ' ') {
       value_start++;
     }
-    printf("key: %s, value: %s\n", token, value_start);
-    match_header(token, value_start, request);
-
-    token = strtok(NULL, "\r\n");
-    token_line++;
+    match_and_set_header(token, value_start, request);
   }
 
-  printf("parsing header finished: displaying request object\n");
-  printf("method: %s\n", request->method);
-  printf("path: %s\n", request->path);
-  printf("host: %s\n", request->host);
-  printf("content_type: %s\n", request->content_type);
-  printf("content_length: %d\n", request->content_length);
+  if (strcmp(request->method, "POST") == 0 &&
+      strcmp(request->path, "/contact") == 0) {
+    if (request->content_length == 0) {
+      printf("content-length not given\n");
+      goto bad_request;
+    }
+    if (request->content_type == NULL ||
+        strcmp(request->content_type, "application/x-www-form-urlencoded") !=
+            0) {
+      printf("content-type not given\n");
+      goto bad_request;
+    }
+
+    response->status_code = 201;
+    if (strlen(request->body) < request->content_length) {
+      printf("request body is incomplete\n");
+
+      int bytes_received =
+          recv(client_fd, &request->body[strlen(request->body) - 1], 5, 0);
+      if (bytes_received <= 0) {
+        goto bad_request;
+      }
+    }
+  }
 
   return 0;
 
-early_return_routine:
+bad_request:
   response->status_code = 400;
   return -1;
 }
@@ -167,16 +174,13 @@ void *handle_request(Node *p_client) {
   memset(&request, 0, sizeof request);
   memset(&response, 0, sizeof response);
 
-  if (parse_request(request_buffer, &request, &response) != 0) {
+  if (parse_request(request_buffer, &request, &response, client_fd) != 0) {
     response.status_code = 400;
-    log_to_console(&logs.error, "[%d] Response sent successfully",
-                   response.status_code, client_id);
-    goto close_connection;
   }
 
-  if (prepare_response(&request, &response, client_fd, client_id) == 0) {
-    if (response.status_code != 200) {
-      log_to_console(&logs.error, "[%d] Response sent successfully",
+  if (send_response(&request, &response, client_fd, client_id) == 0) {
+    if (response.status_code != 200 && response.status_code != 201) {
+      log_to_console(&logs.error, "[%d] Response sent with Error",
                      response.status_code, client_id);
     } else {
       log_to_console(&logs.success, "[%d] Response sent successfully",
@@ -185,7 +189,9 @@ void *handle_request(Node *p_client) {
   } else {
     log_to_console(&logs.error, "Response failed to send, sire!", 0, client_id);
   }
+
 close_connection:
+  printf("------------------------------------------------\n");
   log_to_console(&logs.user, "Connection with the Client is closed", 0,
                  client_id);
   printf("------------------------------------------------\n");

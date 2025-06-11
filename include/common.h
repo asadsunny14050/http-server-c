@@ -28,4 +28,5 @@ typedef struct {
   char *host;
   char *content_type;
   int content_length;
+  char *body;
 } HttpRequest;

@@ -10,6 +10,35 @@
 
 #include "../include/common.h"
 
+static const char *http_status_messages[] = {
+    "OK",           "Created",   "Bad Request",
+    "Unauthorized", "Not Found", "Internal Server Error"};
+
+static const char *get_http_message(int status_code) {
+  switch (status_code) {
+  case 200:
+    return http_status_messages[0];
+    break;
+  case 201:
+    return http_status_messages[1];
+    break;
+  case 400:
+    return http_status_messages[2];
+    break;
+  case 401:
+    return http_status_messages[3];
+    break;
+  case 404:
+    return http_status_messages[4];
+    break;
+  case 500:
+    return http_status_messages[5];
+    break;
+  default:
+    return http_status_messages[0];
+  }
+}
+
 int read_html_file(HttpRequest *request, HttpResponse *response,
                    int client_id) {
 
@@ -25,7 +54,7 @@ int read_html_file(HttpRequest *request, HttpResponse *response,
   log_to_debug(&logs.debug, "Requested Resource Path: %s", file_path,
                client_id);
 
-  if (!file_to_read) {
+  if (file_to_read == NULL) {
     log_to_console(&logs.error, "Failed to load the file that has been given",
                    0, client_id);
     response->status_code = 500;
@@ -58,18 +87,53 @@ int read_html_file(HttpRequest *request, HttpResponse *response,
     return -1;
   }
   response->body = response_buffer;
-  response->body[required_file_size] = '\0';
+  response->body[required_file_size - 1] = '\0';
   log_to_console(&logs.user, "File Read is successful, sire!", 0, client_id);
   fclose(file_to_read);
   return 0;
 }
 
-ssize_t prepare_response(HttpRequest *request, HttpResponse *response,
-                         int client_fd, int client_id) {
+void handle_post(HttpRequest *request, HttpResponse *response, int client_id) {
+
+  char *token;
+  unsigned long insert_buffer_size = 2 * strlen(request->body);
+  char insert_buffer[insert_buffer_size];
+  memset(&insert_buffer, 0, insert_buffer_size);
+  char *body_start = request->body;
+  while ((token = strtok_r(body_start, "&", &body_start)) != NULL) {
+    if (insert_buffer[0] == 0) {
+
+      strncpy(insert_buffer, token, strlen(token));
+    } else {
+      strcat(insert_buffer, ", ");
+      strcat(insert_buffer, token);
+    }
+  }
+  strcat(insert_buffer, "\n");
+
+  FILE *file_to_write_to = fopen("./records.txt", "a");
+  if (file_to_write_to == NULL) {
+    log_to_console(&logs.error, "Our Records file is missing, sire!", 0,
+                   client_id);
+    response->status_code = 500;
+  }
+
+  if (fprintf(file_to_write_to, "%s", insert_buffer) < 0) {
+    log_to_console(&logs.error, "Failed to add to the record, sire!", 0,
+                   client_id);
+    printf("failed write operation, sire\n");
+    response->status_code = 500;
+  }
+
+  log_to_console(&logs.info, "Record added, sire!", 0, client_id);
+  fclose(file_to_write_to);
+}
+
+ssize_t send_response(HttpRequest *request, HttpResponse *response,
+                      int client_fd, int client_id) {
 
   char *requested_path = request->path;
   char *requested_method = request->method;
-  response->status_code = 404;
   strncpy(response->content_type, "text/html", 30);
 
   char *routes[] = {
@@ -81,43 +145,42 @@ ssize_t prepare_response(HttpRequest *request, HttpResponse *response,
 
   int amt_of_routes = sizeof(routes) / sizeof(routes[0]);
 
-  for (int i = 0; i < amt_of_routes; i++) {
-    if (strcmp(requested_path, routes[i]) == 0 &&
-        strcmp(requested_method, "GET") == 0) {
-      response->status_code = 200;
-      if (read_html_file(request, response, client_id) == 0) {
-        response->content_length = strlen(response->body);
+  if (response->status_code != 400 && strcmp(requested_method, "GET") == 0) {
+    response->status_code = 401;
+    for (int i = 0; i < amt_of_routes; i++) {
+      if (strcmp(requested_path, routes[i]) == 0) {
+        response->status_code = 200;
+        if (read_html_file(request, response, client_id) == 0) {
+          response->content_length = strlen(response->body);
+        }
+        break;
       }
-      break;
     }
   }
 
-  if (response->status_code == 404) {
-    char *error_body = (char *)malloc(BUFFER_SIZE);
-    strncpy(error_body,
-            "<html><body><h1>404, Page not found!</h1></body></html>",
-            BUFFER_SIZE);
-    response->body = error_body;
-    response->content_length = strlen(response->body);
+  if (response->status_code == 201) {
+    handle_post(request, response, client_id);
   }
 
-  if (response->status_code == 500) {
+  const char *http_message = get_http_message(response->status_code);
+
+  if (response->status_code != 200) {
     response->body = (char *)malloc(BUFFER_SIZE);
-    strncpy(response->body,
-            "<html><body><h1>Internal Server Error!</h1></body></html>",
-            BUFFER_SIZE);
+    snprintf(response->body, BUFFER_SIZE,
+             "<html><body><h1>%d, %s</h1></body></html>", response->status_code,
+             http_message);
     response->content_length = strlen(response->body);
   }
 
   char *response_buffer = (char *)malloc(BUFFER_SIZE + sizeof(response->body));
   snprintf(response_buffer, (BUFFER_SIZE + sizeof(response->body)),
-           "HTTP/1.1 %d OK\r\n"
+           "HTTP/1.1 %d %s\r\n"
            "Content-Type: %s\r\n"
            "Content-Length: %zu\r\n"
            "Server: %s\r\n"
            "\r\n"
            "%s",
-           response->status_code, response->content_type,
+           response->status_code, http_message, response->content_type,
            response->content_length, SERVER_NAME, response->body);
 
   free(response->body);

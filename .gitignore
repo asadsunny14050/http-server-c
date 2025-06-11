@@ -8,3 +8,5 @@ a.out
 obj
 *.o
 .idea
+records.txt 
+src/debug_functions.c

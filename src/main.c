@@ -139,21 +139,14 @@ int main() {
     log_to_console(&logs.success, "A Client is connected", 0,
                    ntohs(client_addr.sin_port));
 
-    // int *p_client = malloc(2 * sizeof(int));
-    // p_client[0] = client_socket;
-    // p_client[1] = ntohs(client_addr.sin_port);
+    printf("------------------------------------------------\n");
     pthread_mutex_lock(&lock);
     if (enqueue(&WORK_QUEUE, client_socket, ntohs(client_addr.sin_port)) < 0) {
 
       printf("failed to add to the queue, sire!\n");
     };
-    print_queue(WORK_QUEUE.head);
     pthread_cond_signal(&condition_var);
     pthread_mutex_unlock(&lock);
-
-    // pthread_create(&thread, NULL, handle_request, p_client);
-
-    // log_to_console(&logs.info, "Listening for more clients...", 0, 0);
   }
 
   close(sock_fd);
