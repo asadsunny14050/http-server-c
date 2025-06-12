@@ -33,6 +33,10 @@ bool match_and_set_header(char *header_key, char *header_value,
 
     request->content_type = header_value;
     return true;
+  } else if (strcmp(header_key, "connection") == 0) {
+
+    request->connection = header_value;
+    return true;
   } else {
 
     return false;
@@ -51,7 +55,11 @@ int parse_request(char *request_buffer, HttpRequest *request,
 
   char *header_end_pointer = strstr(request_buffer, "\r\n\r\n");
   if (header_end_pointer == NULL) {
-    goto bad_request;
+    int bytes_received = recv(
+        client_fd, &request_buffer[strlen(request_buffer) - 1], BUFFER_SIZE, 0);
+    if (bytes_received <= 0) {
+      goto bad_request;
+    }
   }
   header_end_pointer += 3;
 
@@ -146,10 +154,10 @@ void *handle_request(Node *p_client) {
   log_to_console(&logs.info, "Thread:%d is handling this client", self_id,
                  client_id);
 
-  // timout logic
+  // timeout logic
   struct timeval timeout;
-  timeout.tv_sec = 5;  // Timeout in seconds
-  timeout.tv_usec = 0; // Timeout in microseconds
+  timeout.tv_sec = SERVER_TIMEOUT; // Timeout in seconds
+  timeout.tv_usec = 0;             // Timeout in microseconds
 
   if (setsockopt(client_fd, SOL_SOCKET, SO_RCVTIMEO, (char *)&timeout,
                  sizeof(timeout)) < 0) {
@@ -157,38 +165,70 @@ void *handle_request(Node *p_client) {
     // Handle error
   }
 
-  char *request_buffer = (char *)malloc(BUFFER_SIZE * sizeof(char));
+  int response_count = 0;
 
-  ssize_t bytes_received = 0;
-  bytes_received = recv(client_fd, request_buffer, BUFFER_SIZE, 0);
-
-  if (bytes_received <= 0) {
-    log_to_console(&logs.user, "Client is Inactive", 0, client_id);
-    goto close_connection;
-  }
+  ssize_t bytes_received;
 
   HttpRequest request;
   HttpResponse response;
-  // zeroing out the all the values of the initialized struct so that i don't
-  // accidentally use a garbage value or memory address
-  memset(&request, 0, sizeof request);
-  memset(&response, 0, sizeof response);
 
-  if (parse_request(request_buffer, &request, &response, client_fd) != 0) {
-    response.status_code = 400;
-  }
+  char *request_buffer = (char *)malloc(BUFFER_SIZE * sizeof(char));
 
-  if (send_response(&request, &response, client_fd, client_id) == 0) {
-    if (response.status_code != 200 && response.status_code != 201) {
-      log_to_console(&logs.error, "[%d] Response sent with Error",
-                     response.status_code, client_id);
-    } else {
-      log_to_console(&logs.success, "[%d] Response sent successfully",
-                     response.status_code, client_id);
+  do {
+
+    // zeroing out the all the values of the initialized structs so that i don't
+    // accidentally use a garbage value or memory address, or use values from a
+    // previous request-resposne
+    memset(&request, 0, sizeof request);
+    memset(&response, 0, sizeof response);
+    // default behavior of http/1.1
+    request.connection = "keep-alive";
+    response.connection = request.connection;
+
+    bytes_received = 0;
+    bytes_received = recv(client_fd, request_buffer, BUFFER_SIZE, 0);
+
+    if (bytes_received <= 0) {
+      log_to_console(&logs.user, "Client is Inactive", 0, client_id);
+      goto close_connection;
     }
-  } else {
-    log_to_console(&logs.error, "Response failed to send, sire!", 0, client_id);
-  }
+
+    if (parse_request(request_buffer, &request, &response, client_fd) != 0) {
+      response.status_code = 400;
+    }
+
+    if (send_response(&request, &response, client_fd, client_id) == 0) {
+      if (response.status_code != 200 && response.status_code != 201) {
+        log_to_console(&logs.error, "[%d] Response sent with Failure",
+                       response.status_code, client_id);
+      } else {
+        log_to_console(&logs.success, "[%d] Response sent successfully",
+                       response.status_code, client_id);
+      }
+    } else {
+      log_to_console(&logs.error,
+                     "Response failed to send, sire! Closing connection", 0,
+                     client_id);
+      goto close_connection;
+    }
+
+    response_count++;
+    // printf("strcmp: %d\n", strcmp("close", request.connection));
+    if (request.connection != NULL &&
+        strcmp("close", request.connection) == 0) {
+      log_to_console(&logs.info, "Client's demanding to close the connection",
+                     0, client_id);
+    }
+
+    if (response_count >= MAX_REQUESTS_PER_CONNECTION) {
+
+      log_to_console(&logs.info, "Client's exhausted his requests limit", 0,
+                     client_id);
+    }
+
+  } while ((request.connection == NULL ||
+            strcmp("close", request.connection) != 0) &&
+           response_count < MAX_REQUESTS_PER_CONNECTION);
 
 close_connection:
   printf("------------------------------------------------\n");

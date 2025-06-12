@@ -51,7 +51,7 @@ int read_html_file(HttpRequest *request, HttpResponse *response,
   }
 
   FILE *file_to_read = fopen(file_path, "r");
-  log_to_debug(&logs.debug, "Requested Resource Path: %s", file_path,
+  log_to_debug(&logs.debug, "Actual Resource Path found: %s", file_path,
                client_id);
 
   if (file_to_read == NULL) {
@@ -146,7 +146,8 @@ ssize_t send_response(HttpRequest *request, HttpResponse *response,
   int amt_of_routes = sizeof(routes) / sizeof(routes[0]);
 
   if (response->status_code != 400 && strcmp(requested_method, "GET") == 0) {
-    response->status_code = 401;
+    response->status_code = 404;
+    log_to_debug(&logs.user, "Requested Path: %s", requested_path, client_id);
     for (int i = 0; i < amt_of_routes; i++) {
       if (strcmp(requested_path, routes[i]) == 0) {
         response->status_code = 200;
@@ -172,16 +173,24 @@ ssize_t send_response(HttpRequest *request, HttpResponse *response,
     response->content_length = strlen(response->body);
   }
 
+  if (request->connection != NULL &&
+      strcmp("close", request->connection) == 0) {
+    response->connection = request->connection;
+  }
+
   char *response_buffer = (char *)malloc(BUFFER_SIZE + sizeof(response->body));
   snprintf(response_buffer, (BUFFER_SIZE + sizeof(response->body)),
            "HTTP/1.1 %d %s\r\n"
            "Content-Type: %s\r\n"
            "Content-Length: %zu\r\n"
+           "Connection: %s\r\n"
+           "Keep-Alive: timeout=%d, max=%d\r\n"
            "Server: %s\r\n"
            "\r\n"
            "%s",
            response->status_code, http_message, response->content_type,
-           response->content_length, SERVER_NAME, response->body);
+           response->content_length, response->connection, SERVER_TIMEOUT,
+           MAX_REQUESTS_PER_CONNECTION, SERVER_NAME, response->body);
 
   free(response->body);
 
