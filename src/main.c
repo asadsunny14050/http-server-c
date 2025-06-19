@@ -127,17 +127,11 @@ int main(int argc, char **argv) {
   log_to_console(&logs.success, "Scanning Directory, sire!", 0, 0);
   log_to_console(&logs.success, "Scanning Assets for Service, sire!", 0, 0);
 
-  struct dirent *dir_entry;
+  struct dirent *dir_entry = NULL;
   bool index_html_exists = false;
+  int i = 0;
 
-  for (int i = 0; (dir_entry = readdir(dir)) != NULL; i++) {
-
-    if ((i = 0 && dir_entry == NULL)) {
-
-      perror(
-          "directory's empty, what do you want me to serve, nothingburger?\n");
-      exit(1);
-    }
+  while ((dir_entry = readdir(dir)) != NULL) {
 
     if (strcmp(dir_entry->d_name, "index.html") == 0)
       index_html_exists = true;
@@ -156,15 +150,21 @@ int main(int argc, char **argv) {
       log_to_debug(&logs.warning, "File: \e[35m%s\e[0m is not supported",
                    dir_entry->d_name, 0);
     }
+    i++;
+  }
+  if (i < 2) {
+    perror("directory's empty, what do you want me to serve, nothingburger?\n");
+    exit(1);
   }
 
   if (!index_html_exists) {
-
     log_to_debug(
         &logs.warning,
         "File: \e[35mindex.html\e[0m for default home page is not given", NULL,
         0);
   }
+
+  closedir(dir);
 
   struct sockaddr_in serv_info;
 
