@@ -165,7 +165,7 @@ void *handle_request(Node *p_client) {
     // Handle error
   }
 
-  int response_count = 0;
+  int response_quota = 0;
 
   ssize_t bytes_received;
 
@@ -178,7 +178,7 @@ void *handle_request(Node *p_client) {
 
     // zeroing out the all the values of the initialized structs so that i don't
     // accidentally use a garbage value or memory address, or use values from a
-    // previous request-resposne
+    // previous request-resposne cycle
     memset(&request, 0, sizeof request);
     memset(&response, 0, sizeof response);
     // default behavior of http/1.1
@@ -212,7 +212,7 @@ void *handle_request(Node *p_client) {
       goto close_connection;
     }
 
-    response_count++;
+    response_quota++;
     // printf("strcmp: %d\n", strcmp("close", request.connection));
     if (request.connection != NULL &&
         strcmp("close", request.connection) == 0) {
@@ -220,7 +220,7 @@ void *handle_request(Node *p_client) {
                      0, client_id);
     }
 
-    if (response_count >= MAX_REQUESTS_PER_CONNECTION) {
+    if (response_quota >= MAX_REQUESTS_PER_CONNECTION) {
 
       log_to_console(&logs.info, "Client's exhausted his requests limit", 0,
                      client_id);
@@ -228,7 +228,7 @@ void *handle_request(Node *p_client) {
 
   } while ((request.connection == NULL ||
             strcmp("close", request.connection) != 0) &&
-           response_count < MAX_REQUESTS_PER_CONNECTION);
+           response_quota < MAX_REQUESTS_PER_CONNECTION);
 
 close_connection:
   printf("------------------------------------------------\n");

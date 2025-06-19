@@ -1,7 +1,9 @@
 #include <arpa/inet.h> // Include for inet_addr and other functions
+#include <dirent.h>
 #include <errno.h>
 #include <netinet/in.h> // Include for sockaddr_in structure
 #include <pthread.h>
+#include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -86,6 +88,8 @@ int init_server(struct sockaddr_in *serv_info) {
   printf("[Spinning Threads]: ");
   for (int i = 0; i < THREAD_POOL_SIZE; i++) {
 
+    usleep(200000);
+
     if (i == THREAD_POOL_SIZE - 1) {
 
       printf("#\n");
@@ -104,7 +108,63 @@ int init_server(struct sockaddr_in *serv_info) {
   return sock_fd;
 }
 
-int main() {
+char *public_directory = NULL;
+
+int main(int argc, char **argv) {
+
+  if (argc != 2) {
+    perror("Usage: cpider-web-server <directory>");
+    exit(1);
+  }
+  public_directory = argv[1];
+
+  DIR *dir = opendir(public_directory);
+  if (!dir) {
+    perror("cannot find path, input a directory that actually exists lol!");
+    exit(1);
+  }
+
+  log_to_console(&logs.success, "Scanning Directory, sire!", 0, 0);
+  log_to_console(&logs.success, "Scanning Assets for Service, sire!", 0, 0);
+
+  struct dirent *dir_entry;
+  bool index_html_exists = false;
+
+  for (int i = 0; (dir_entry = readdir(dir)) != NULL; i++) {
+
+    if ((i = 0 && dir_entry == NULL)) {
+
+      perror(
+          "directory's empty, what do you want me to serve, nothingburger?\n");
+      exit(1);
+    }
+
+    if (strcmp(dir_entry->d_name, "index.html") == 0)
+      index_html_exists = true;
+
+    if (!strcmp(dir_entry->d_name, ".") || dir_entry->d_name[0] == '.' ||
+        !strcmp(dir_entry->d_name, "..")) {
+      continue;
+    }
+
+    char *file_extension = strchr(dir_entry->d_name, '.');
+    if (file_extension == NULL) {
+      continue;
+    }
+
+    if (validate_content_type(file_extension + 1) != 0) {
+      log_to_debug(&logs.warning, "File: \e[35m%s\e[0m is not supported",
+                   dir_entry->d_name, 0);
+    }
+  }
+
+  if (!index_html_exists) {
+
+    log_to_debug(
+        &logs.warning,
+        "File: \e[35mindex.html\e[0m for default home page is not given", NULL,
+        0);
+  }
 
   struct sockaddr_in serv_info;
 

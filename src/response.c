@@ -2,6 +2,7 @@
 #include "../include/request.h"
 #include "../include/utils.h"
 
+#include <dirent.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -10,9 +11,53 @@
 
 #include "../include/common.h"
 
-static const char *http_status_messages[] = {
-    "OK",           "Created",   "Bad Request",
-    "Unauthorized", "Not Found", "Internal Server Error"};
+const struct MimeTypeMapping mime_types[] = {
+    {"html", "text/html"},
+    {"htm", "text/html"},
+    {"css", "text/css"},
+    {"js", "application/javascript"},
+    {"json", "application/json"},
+    {"txt", "text/plain"},
+    {"csv", "text/csv"},
+    {"xml", "application/xml"},
+    {"jpg", "image/jpeg"},
+    {"jpeg", "image/jpeg"},
+    {"png", "image/png"},
+    {"gif", "image/gif"},
+    {"webp", "image/webp"},
+    {"svg", "image/svg+xml"},
+    {"ico", "image/x-icon"},
+    {"mp4", "video/mp4"},
+    {"webm", "video/webm"},
+    {"ogg", "video/ogg"},
+    {"mp3", "audio/mpeg"},
+    {"wav", "audio/wav"},
+    {"pdf", "application/pdf"},
+    {"zip", "application/zip"},
+    {NULL, NULL} // Sentinel to mark end of array
+};
+
+int match_and_set_content_type(char *file_extension, HttpResponse *response) {
+
+  int result = -1;
+  for (int i = 0; mime_types[i].extension != NULL; i++) {
+    result = strcmp(mime_types[i].extension, file_extension);
+    if (result == 0) {
+      response->content_type = (char *)mime_types[i].content_type;
+      break;
+    }
+  }
+
+  return result;
+}
+
+static const char *http_status_messages[] = {"OK",
+                                             "Created",
+                                             "Bad Request",
+                                             "Unauthorized",
+                                             "Not Found",
+                                             "Unsupported Media Type",
+                                             "Internal Server Error"};
 
 static const char *get_http_message(int status_code) {
   switch (status_code) {
@@ -31,23 +76,44 @@ static const char *get_http_message(int status_code) {
   case 404:
     return http_status_messages[4];
     break;
-  case 500:
+  case 415:
     return http_status_messages[5];
+    break;
+  case 500:
+    return http_status_messages[6];
     break;
   default:
     return http_status_messages[0];
   }
 }
 
-int read_html_file(HttpRequest *request, HttpResponse *response,
-                   int client_id) {
+int read_static_file(HttpRequest *request, HttpResponse *response,
+                     int client_id) {
+  extern char *public_directory;
 
   char file_path[30];
 
   if (strcmp(request->path, "/home") == 0 || strcmp(request->path, "/") == 0) {
-    strncpy(file_path, "./assets/index.html", 30);
+    snprintf(file_path, 30, "%s%s", public_directory, "/index.html");
+
+  } else if (strchr(request->path, '.') == NULL) {
+
+    snprintf(file_path, 30, "%s%s.html", public_directory, request->path);
+
   } else {
-    snprintf(file_path, 30, "./assets%s.html", request->path);
+
+    char *file_extension = strchr(request->path, '.') + 1;
+    if (file_extension == NULL) {
+      log_to_console(&logs.error, "No File Extension, sire!", 0, client_id);
+      response->status_code = 500;
+      return -1;
+    }
+    if (match_and_set_content_type(file_extension, response) != 0) {
+      response->status_code = 415;
+      return -1;
+    };
+
+    snprintf(file_path, 30, "%s%s", public_directory, request->path);
   }
 
   FILE *file_to_read = fopen(file_path, "r");
@@ -55,9 +121,8 @@ int read_html_file(HttpRequest *request, HttpResponse *response,
                client_id);
 
   if (file_to_read == NULL) {
-    log_to_console(&logs.error, "Failed to load the file that has been given",
-                   0, client_id);
-    response->status_code = 500;
+    log_to_console(&logs.error, "The File doesn't exist, sire!", 0, client_id);
+    response->status_code = 404;
     return -1;
   }
 
@@ -102,7 +167,6 @@ void handle_post(HttpRequest *request, HttpResponse *response, int client_id) {
   char *body_start = request->body;
   while ((token = strtok_r(body_start, "&", &body_start)) != NULL) {
     if (insert_buffer[0] == 0) {
-
       strncpy(insert_buffer, token, strlen(token));
     } else {
       strcat(insert_buffer, ", ");
@@ -134,28 +198,14 @@ ssize_t send_response(HttpRequest *request, HttpResponse *response,
 
   char *requested_path = request->path;
   char *requested_method = request->method;
-  strncpy(response->content_type, "text/html", 30);
-
-  char *routes[] = {
-      "/",
-      "/home",
-      "/about",
-      "/contact",
-  };
-
-  int amt_of_routes = sizeof(routes) / sizeof(routes[0]);
+  response->content_type = (char *)mime_types[0].content_type;
 
   if (response->status_code != 400 && strcmp(requested_method, "GET") == 0) {
     response->status_code = 404;
     log_to_debug(&logs.user, "Requested Path: %s", requested_path, client_id);
-    for (int i = 0; i < amt_of_routes; i++) {
-      if (strcmp(requested_path, routes[i]) == 0) {
-        response->status_code = 200;
-        if (read_html_file(request, response, client_id) == 0) {
-          response->content_length = strlen(response->body);
-        }
-        break;
-      }
+    if (read_static_file(request, response, client_id) == 0) {
+      response->content_length = strlen(response->body);
+      response->status_code = 200;
     }
   }
 

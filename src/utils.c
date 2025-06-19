@@ -2,6 +2,21 @@
 #include "../include/response.h"
 #include <string.h>
 
+extern const struct MimeTypeMapping mime_types[];
+
+int validate_content_type(char *file_extension) {
+
+  int result = -1;
+  for (int i = 0; mime_types[i].extension != NULL; i++) {
+    result = strcmp(mime_types[i].extension, file_extension);
+    if (result == 0) {
+      break;
+    }
+  }
+
+  return result;
+}
+
 const LOGS logs = {{"ERROR", "31"}, {"INFO", "32"},    {"DEBUG", "33"},
                    {"USER", "37"},  {"SUCCESS", "34"}, {"WARNING", "36"}};
 

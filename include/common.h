@@ -10,21 +10,6 @@
 
 #define THREAD_POOL_SIZE 16
 
-#define LOG_ERROR "31"
-#define LOG_INFO "32"
-#define LOG_DEBUG "33"
-#define LOG_USER_INFO "34"
-#define LOG_SUCCESS "35"
-#define LOG_WARNING "36"
-
-typedef struct {
-  int status_code;
-  char content_type[30];
-  size_t content_length;
-  char *connection;
-  char *body;
-} HttpResponse;
-
 typedef struct {
   char *method;
   char *path;
@@ -34,3 +19,16 @@ typedef struct {
   char *connection;
   char *body;
 } HttpRequest;
+
+typedef struct {
+  int status_code;
+  char *content_type;
+  size_t content_length;
+  char *connection;
+  char *body;
+} HttpResponse;
+
+struct MimeTypeMapping {
+  const char *extension;
+  const char *content_type;
+};
