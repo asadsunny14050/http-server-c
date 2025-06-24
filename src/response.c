@@ -32,8 +32,6 @@ const struct MimeTypeMapping mime_types[] = {
     {"ogg", "video/ogg"},
     {"mp3", "audio/mpeg"},
     {"wav", "audio/wav"},
-    {"pdf", "application/pdf"},
-    {"zip", "application/zip"},
     {NULL, NULL} // Sentinel to mark end of array
 };
 
@@ -116,9 +114,9 @@ int read_static_file(HttpRequest *request, HttpResponse *response,
     snprintf(file_path, 30, "%s%s", public_directory, request->path);
   }
 
-  FILE *file_to_read = fopen(file_path, "r");
   log_to_debug(&logs.debug, "Actual Resource Path found: %s", file_path,
                client_id);
+  FILE *file_to_read = fopen(file_path, "rb");
 
   if (file_to_read == NULL) {
     log_to_console(&logs.error, "The File doesn't exist, sire!", 0, client_id);
@@ -126,7 +124,8 @@ int read_static_file(HttpRequest *request, HttpResponse *response,
     return -1;
   }
 
-  log_to_console(&logs.user, "Requested HTML file opened, sire!", 0, client_id);
+  log_to_console(&logs.user, "Requested Static file opened, sire!", 0,
+                 client_id);
   struct stat file_statbuf;
   int stat_result = fstat(fileno(file_to_read), &file_statbuf);
 
@@ -145,8 +144,10 @@ int read_static_file(HttpRequest *request, HttpResponse *response,
 
   size_t bytes_read =
       fread(response_buffer, 1, required_file_size, file_to_read);
+
+  printf("bytes_read: %lu\n", bytes_read);
   if (bytes_read != required_file_size) {
-    log_to_console(&logs.error, "Read Operation faild, sire!", 0, client_id);
+    log_to_console(&logs.error, "Read Operation failed, sire!", 0, client_id);
     fclose(file_to_read);
     response->status_code = 500;
     return -1;
@@ -155,7 +156,11 @@ int read_static_file(HttpRequest *request, HttpResponse *response,
   response->body[required_file_size - 1] = '\0';
   log_to_console(&logs.user, "File Read is successful, sire!", 0, client_id);
   fclose(file_to_read);
-  return 0;
+  if (strstr(response->content_type, "text") != NULL ||
+      strstr(response->content_type, "application") != NULL) {
+    return strlen(response->body);
+  }
+  return required_file_size;
 }
 
 void handle_post(HttpRequest *request, HttpResponse *response, int client_id) {
@@ -193,8 +198,7 @@ void handle_post(HttpRequest *request, HttpResponse *response, int client_id) {
   fclose(file_to_write_to);
 }
 
-ssize_t send_response(HttpRequest *request, HttpResponse *response,
-                      int client_fd, int client_id) {
+ssize_t send_response(HttpRequest *request, HttpResponse *response, int client_fd, int client_id) {
 
   char *requested_path = request->path;
   char *requested_method = request->method;
@@ -203,8 +207,9 @@ ssize_t send_response(HttpRequest *request, HttpResponse *response,
   if (response->status_code != 400 && strcmp(requested_method, "GET") == 0) {
     response->status_code = 404;
     log_to_debug(&logs.user, "Requested Path: %s", requested_path, client_id);
-    if (read_static_file(request, response, client_id) == 0) {
-      response->content_length = strlen(response->body);
+    int read_result = read_static_file(request, response, client_id);
+    if (read_result != -1) {
+      response->content_length = read_result;
       response->status_code = 200;
     }
   }
@@ -228,24 +233,28 @@ ssize_t send_response(HttpRequest *request, HttpResponse *response,
     response->connection = request->connection;
   }
 
-  char *response_buffer = (char *)malloc(BUFFER_SIZE + sizeof(response->body));
-  snprintf(response_buffer, (BUFFER_SIZE + sizeof(response->body)),
-           "HTTP/1.1 %d %s\r\n"
-           "Content-Type: %s\r\n"
-           "Content-Length: %zu\r\n"
-           "Connection: %s\r\n"
-           "Keep-Alive: timeout=%d, max=%d\r\n"
-           "Server: %s\r\n"
-           "\r\n"
-           "%s",
-           response->status_code, http_message, response->content_type,
-           response->content_length, response->connection, SERVER_TIMEOUT,
-           MAX_REQUESTS_PER_CONNECTION, SERVER_NAME, response->body);
+  char *response_buffer =
+      (char *)malloc(BUFFER_SIZE + response->content_length);
+
+  size_t response_header_length =
+      snprintf(response_buffer, BUFFER_SIZE + response->content_length,
+               "HTTP/1.1 %d %s\r\n"
+               "Content-Type: %s\r\n"
+               "Content-Length: %zu\r\n"
+               "Connection: %s\r\n"
+               "Keep-Alive: timeout=%d, max=%d\r\n"
+               "Server: %s\r\n"
+               "\r\n",
+               response->status_code, http_message, response->content_type,
+               response->content_length, response->connection, SERVER_TIMEOUT,
+               MAX_REQUESTS_PER_CONNECTION, SERVER_NAME);
+  memcpy(response_buffer + response_header_length, response->body,
+         response->content_length);
 
   free(response->body);
 
   // make sure all the bytes get sent to the client even in chunks if necessary
-  size_t total_to_send = strlen(response_buffer);
+  size_t total_to_send = response_header_length + response->content_length;
   size_t total_sent = 0;
   while (total_sent < total_to_send) {
     ssize_t bytes_sent = send(client_fd, response_buffer + total_sent,

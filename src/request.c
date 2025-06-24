@@ -199,16 +199,12 @@ void *handle_request(Node *p_client) {
 
     if (send_response(&request, &response, client_fd, client_id) == 0) {
       if (response.status_code != 200 && response.status_code != 201) {
-        log_to_console(&logs.error, "[%d] Response sent with Failure",
-                       response.status_code, client_id);
+        log_to_console(&logs.error, "[%d] Response sent with Failure", response.status_code, client_id);
       } else {
-        log_to_console(&logs.success, "[%d] Response sent successfully",
-                       response.status_code, client_id);
+        log_to_console(&logs.success, "[%d] Response sent successfully", response.status_code, client_id);
       }
     } else {
-      log_to_console(&logs.error,
-                     "Response failed to send, sire! Closing connection", 0,
-                     client_id);
+      log_to_console(&logs.error, "Response failed to send, sire! Closing connection", 0, client_id);
       goto close_connection;
     }
 

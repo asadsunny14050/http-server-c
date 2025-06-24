@@ -17,8 +17,7 @@ int validate_content_type(char *file_extension) {
   return result;
 }
 
-const LOGS logs = {{"ERROR", "31"}, {"INFO", "32"},    {"DEBUG", "33"},
-                   {"USER", "37"},  {"SUCCESS", "34"}, {"WARNING", "36"}};
+const LOGS logs = {{"ERROR", "31"}, {"INFO", "32"}, {"DEBUG", "33"}, {"USER", "37"}, {"SUCCESS", "34"}, {"WARNING", "36"}};
 
 void log_to_console(const LOG_TYPE *log_type, char *log_message, int arg,
                     int client_id) {
