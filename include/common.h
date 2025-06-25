@@ -14,18 +14,18 @@ typedef struct {
   char *method;
   char *path;
   char *host;
+  char *connection;
   char *content_type;
   size_t content_length;
-  char *connection;
   char *body;
 } HttpRequest;
 
 typedef struct {
   int status_code;
+  char *connection;
   char *content_type;
   size_t content_length;
-  char *connection;
-  char *body;
+  void *body;
 } HttpResponse;
 
 struct MimeTypeMapping {

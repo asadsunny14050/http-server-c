@@ -85,8 +85,8 @@ static const char *get_http_message(int status_code) {
   }
 }
 
-int read_static_file(HttpRequest *request, HttpResponse *response,
-                     int client_id) {
+FILE *open_static_file(HttpRequest *request, HttpResponse *response,
+                       int client_id) {
   extern char *public_directory;
 
   char file_path[30];
@@ -104,11 +104,11 @@ int read_static_file(HttpRequest *request, HttpResponse *response,
     if (file_extension == NULL) {
       log_to_console(&logs.error, "No File Extension, sire!", 0, client_id);
       response->status_code = 500;
-      return -1;
+      return NULL;
     }
     if (match_and_set_content_type(file_extension, response) != 0) {
       response->status_code = 415;
-      return -1;
+      return NULL;
     };
 
     snprintf(file_path, 30, "%s%s", public_directory, request->path);
@@ -121,7 +121,7 @@ int read_static_file(HttpRequest *request, HttpResponse *response,
   if (file_to_read == NULL) {
     log_to_console(&logs.error, "The File doesn't exist, sire!", 0, client_id);
     response->status_code = 404;
-    return -1;
+    return NULL;
   }
 
   log_to_console(&logs.user, "Requested Static file opened, sire!", 0,
@@ -135,32 +135,28 @@ int read_static_file(HttpRequest *request, HttpResponse *response,
                    client_id);
     fclose(file_to_read);
     response->status_code = 500;
-    return -1;
+    return NULL;
   }
 
-  size_t required_file_size = file_statbuf.st_size;
+  // size_t required_file_size = file_statbuf.st_size;
   // remember to free this
-  char *response_buffer = (char *)malloc(required_file_size);
+  // char *response_buffer = (char *)malloc(required_file_size);
 
-  size_t bytes_read =
-      fread(response_buffer, 1, required_file_size, file_to_read);
+  // size_t bytes_read = fread(response_buffer, 1, required_file_size, file_to_read);
 
-  printf("bytes_read: %lu\n", bytes_read);
-  if (bytes_read != required_file_size) {
-    log_to_console(&logs.error, "Read Operation failed, sire!", 0, client_id);
-    fclose(file_to_read);
-    response->status_code = 500;
-    return -1;
-  }
-  response->body = response_buffer;
-  response->body[required_file_size - 1] = '\0';
-  log_to_console(&logs.user, "File Read is successful, sire!", 0, client_id);
-  fclose(file_to_read);
-  if (strstr(response->content_type, "text") != NULL ||
-      strstr(response->content_type, "application") != NULL) {
-    return strlen(response->body);
-  }
-  return required_file_size;
+  // printf("bytes_read: %lu\n", bytes_read);
+  // if (bytes_read != required_file_size) {
+  //   log_to_console(&logs.error, "Read Operation failed, sire!", 0, client_id);
+  //   fclose(file_to_read);
+  //   response->status_code = 500;
+  //   return NULL;
+  // }
+  // response->body = response_buffer;
+  // response->body[required_file_size - 1] = '\0';
+  // log_to_console(&logs.user, "File Read is successful, sire!", 0, client_id);
+  // fclose(file_to_read);
+  response->content_length = file_statbuf.st_size;
+  return file_to_read;
 }
 
 void handle_post(HttpRequest *request, HttpResponse *response, int client_id) {
@@ -203,13 +199,13 @@ ssize_t send_response(HttpRequest *request, HttpResponse *response, int client_f
   char *requested_path = request->path;
   char *requested_method = request->method;
   response->content_type = (char *)mime_types[0].content_type;
-
+  FILE *file_to_send;
   if (response->status_code != 400 && strcmp(requested_method, "GET") == 0) {
     response->status_code = 404;
     log_to_debug(&logs.user, "Requested Path: %s", requested_path, client_id);
-    int read_result = read_static_file(request, response, client_id);
-    if (read_result != -1) {
-      response->content_length = read_result;
+    file_to_send = open_static_file(request, response, client_id);
+    if (file_to_send != NULL) {
+
       response->status_code = 200;
     }
   }
@@ -233,39 +229,90 @@ ssize_t send_response(HttpRequest *request, HttpResponse *response, int client_f
     response->connection = request->connection;
   }
 
-  char *response_buffer =
-      (char *)malloc(BUFFER_SIZE + response->content_length);
+  char *response_header = (char *)malloc(BUFFER_SIZE);
+  size_t response_header_length = snprintf(response_header, BUFFER_SIZE,
+                                           "HTTP/1.1 %d %s\r\n"
+                                           "Content-Type: %s\r\n"
+                                           "Content-Length: %zu\r\n"
+                                           "Connection: %s\r\n"
+                                           "Keep-Alive: timeout=%d, max=%d\r\n"
+                                           "Server: %s\r\n"
+                                           "\r\n",
+                                           response->status_code,
+                                           http_message,
+                                           response->content_type,
+                                           response->content_length,
+                                           response->connection,
+                                           SERVER_TIMEOUT,
+                                           MAX_REQUESTS_PER_CONNECTION,
+                                           SERVER_NAME);
 
-  size_t response_header_length =
-      snprintf(response_buffer, BUFFER_SIZE + response->content_length,
-               "HTTP/1.1 %d %s\r\n"
-               "Content-Type: %s\r\n"
-               "Content-Length: %zu\r\n"
-               "Connection: %s\r\n"
-               "Keep-Alive: timeout=%d, max=%d\r\n"
-               "Server: %s\r\n"
-               "\r\n",
-               response->status_code, http_message, response->content_type,
-               response->content_length, response->connection, SERVER_TIMEOUT,
-               MAX_REQUESTS_PER_CONNECTION, SERVER_NAME);
-  memcpy(response_buffer + response_header_length, response->body,
-         response->content_length);
-
-  free(response->body);
-
-  // make sure all the bytes get sent to the client even in chunks if necessary
-  size_t total_to_send = response_header_length + response->content_length;
-  size_t total_sent = 0;
-  while (total_sent < total_to_send) {
-    ssize_t bytes_sent = send(client_fd, response_buffer + total_sent,
-                              total_to_send - total_sent, 0);
-    if (bytes_sent < 0) {
-      free(response_buffer);
-      return -1;
-    }
-    total_sent = total_sent + bytes_sent;
+  ssize_t header_bytes_sent = send(client_fd, response_header, response_header_length, 0);
+  if (header_bytes_sent < 0) {
+    free(response_header);
+    return -1;
   }
 
-  free(response_buffer);
+  free(response_header);
+
+  if (file_to_send == NULL) {
+    send(client_fd, response->body, strlen(response->body), 0);
+    return 0;
+  }
+
+  response->body = malloc(2 * BUFFER_SIZE);
+  size_t total_data_sent = 0;
+  int iteration = 0;
+
+  do {
+    printf("iteration: %d\n", iteration++);
+    memset(response->body, 0, 2 * BUFFER_SIZE);
+
+    size_t bytes_read = fread(response->body, 1, 2 * BUFFER_SIZE, file_to_send);
+
+    size_t chunk_to_send = bytes_read;
+    size_t chunk_actually_sent = 0;
+    while (chunk_actually_sent < chunk_to_send) {
+      ssize_t bytes_sent = send(client_fd, response->body + chunk_actually_sent, chunk_to_send - chunk_actually_sent, 0);
+      if (bytes_sent < 0) {
+        free(response->body);
+        return -1;
+      }
+      chunk_actually_sent = chunk_actually_sent + bytes_sent;
+    }
+    total_data_sent = total_data_sent + chunk_actually_sent;
+  } while (total_data_sent < response->content_length);
+  free(response->body);
+  // memcpy(response_buffer + response_header_length, response->body,
+  //        response->content_length);
+
+  // size_t bytes_read = fread(response_buffer + response_header_length, 1, BUFFER_SIZE, file_to_send);
+
+  // printf("bytes_read: %lu\n", bytes_read);
+  // if (bytes_read <= 0) {
+  //   log_to_console(&logs.error, "Read Operation failed, sire!", 0, client_id);
+  //   fclose(file_to_send);
+  //   response->status_code = 500;
+  //   return NULL;
+  // }
+  // log_to_console(&logs.user, "File Read is successful, sire!", 0, client_id);
+  // free(response->body);
+
+  // // make sure all the bytes get sent to the client even in chunks if necessary
+  // size_t total_to_send = response_header_length + response->content_length;
+  // size_t total_sent = 0;
+  // while (total_sent < total_to_send) {
+  //   ssize_t bytes_sent = send(client_fd, response_buffer + total_sent, total_to_send - total_sent, 0);
+  //   if (bytes_sent < 0) {
+  //     free(response_buffer);
+  //     return -1;
+  //   }
+  //   total_sent = total_sent + bytes_sent;
+  // }
+
+  // free(response_buffer);
+  if (file_to_send != NULL) {
+    fclose(file_to_send);
+  }
   return 0;
 }
