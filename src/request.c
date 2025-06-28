@@ -12,8 +12,7 @@
 #include <sys/socket.h>
 #include <unistd.h>
 
-bool match_and_set_header(char *header_key, char *header_value,
-                          HttpRequest *request) {
+bool match_and_set_header(char *header_key, char *header_value, HttpRequest *request) {
 
   // convert all the characters of header-key to lowerbcase due to case
   // insensitivity
@@ -43,8 +42,7 @@ bool match_and_set_header(char *header_key, char *header_value,
   }
 }
 
-int parse_request(char *request_buffer, HttpRequest *request,
-                  HttpResponse *response, int client_fd) {
+int parse_request(char *request_buffer, HttpRequest *request, HttpResponse *response, int client_fd) {
 
   // the header key-value pair starts here minus the request line
   char *header_start_pointer = strstr(request_buffer, "\r\n");
@@ -88,8 +86,7 @@ int parse_request(char *request_buffer, HttpRequest *request,
 
   char *token = NULL;
 
-  while ((token = strtok_r(header_start_pointer, "\r\n",
-                           &header_start_pointer)) != NULL) {
+  while ((token = strtok_r(header_start_pointer, "\r\n", &header_start_pointer)) != NULL) {
 
     if (token == header_end_pointer + 1) {
       request->body = token;
@@ -113,8 +110,7 @@ int parse_request(char *request_buffer, HttpRequest *request,
     match_and_set_header(token, value_start, request);
   }
 
-  if (strcmp(request->method, "POST") == 0 &&
-      strcmp(request->path, "/contact") == 0) {
+  if (strcmp(request->method, "POST") == 0 && strcmp(request->path, "/contact") == 0) {
     if (request->content_length == 0) {
       printf("content-length not given\n");
       goto bad_request;
@@ -151,8 +147,7 @@ void *handle_request(Node *p_client) {
   int client_id = p_client->client_id;
   free(p_client);
   pthread_t self_id = pthread_self();
-  log_to_console(&logs.info, "Thread:%d is handling this client", self_id,
-                 client_id);
+  log_to_console(&logs.info, "Thread:%d is handling this client", self_id, client_id);
 
   // timeout logic
   struct timeval timeout;
@@ -212,24 +207,19 @@ void *handle_request(Node *p_client) {
     // printf("strcmp: %d\n", strcmp("close", request.connection));
     if (request.connection != NULL &&
         strcmp("close", request.connection) == 0) {
-      log_to_console(&logs.info, "Client's demanding to close the connection",
-                     0, client_id);
+      log_to_console(&logs.info, "Client's demanding to close the connection", 0, client_id);
     }
 
     if (response_quota >= MAX_REQUESTS_PER_CONNECTION) {
 
-      log_to_console(&logs.info, "Client's exhausted his requests limit", 0,
-                     client_id);
+      log_to_console(&logs.info, "Client's exhausted his requests limit", 0, client_id);
     }
 
-  } while ((request.connection == NULL ||
-            strcmp("close", request.connection) != 0) &&
-           response_quota < MAX_REQUESTS_PER_CONNECTION);
+  } while ((request.connection == NULL || strcmp("close", request.connection) != 0) && response_quota < MAX_REQUESTS_PER_CONNECTION);
 
 close_connection:
   printf("------------------------------------------------\n");
-  log_to_console(&logs.user, "Connection with the Client is closed", 0,
-                 client_id);
+  log_to_console(&logs.user, "Connection with the Client is closed", 0, client_id);
   printf("------------------------------------------------\n");
   free(request_buffer);
   close(client_fd);

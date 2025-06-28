@@ -21,6 +21,7 @@
 pthread_t THREAD_POOL[THREAD_POOL_SIZE];
 pthread_mutex_t lock = PTHREAD_MUTEX_INITIALIZER;
 pthread_cond_t condition_var = PTHREAD_COND_INITIALIZER;
+int num_waiting_threads = 0;
 
 // keeps track of all the accepted connections from different clients,
 // waiting to be handled by one of the threads
@@ -36,6 +37,11 @@ void *single_thread_lifetime() {
 
     p_client = dequeue(&WORK_QUEUE);
     if (p_client == NULL) {
+      num_waiting_threads++;
+      if (num_waiting_threads == 16) {
+
+        log_to_console(&logs.info, "Waiting for clients to connect.... ", 0, 0);
+      }
       pthread_cond_wait(&condition_var, &lock);
       p_client = dequeue(&WORK_QUEUE);
     }
@@ -103,7 +109,6 @@ int init_server(struct sockaddr_in *serv_info) {
   }
 
   log_to_console(&logs.info, "Server Listening on Port %d.... ", PORT, 0);
-  log_to_console(&logs.info, "Waiting for a client to connect.... ", 0, 0);
 
   return sock_fd;
 }
@@ -178,15 +183,15 @@ int main(int argc, char **argv) {
 
   // infinite loop for keep taking client connections
   while (1) {
+    // if (WORK_QUEUE.head == NULL && WORK_QUEUE.tail == NULL) {
+    // }
     struct sockaddr_in client_addr;
     socklen_t client_addrlen = sizeof(client_addr);
 
-    int client_socket =
-        accept(sock_fd, (struct sockaddr *)&client_addr, &client_addrlen);
+    int client_socket = accept(sock_fd, (struct sockaddr *)&client_addr, &client_addrlen);
 
     if (client_socket < 0) {
-      log_to_console(&logs.error,
-                     "Cannot establish connection with client, sire!", 0, 0);
+      log_to_console(&logs.error, "Cannot establish connection with client, sire!", 0, 0);
       continue;
     }
 
@@ -206,6 +211,7 @@ int main(int argc, char **argv) {
       printf("failed to add to the queue, sire!\n");
     };
     pthread_cond_signal(&condition_var);
+    num_waiting_threads--;
     pthread_mutex_unlock(&lock);
   }
 
