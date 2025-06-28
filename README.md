@@ -17,7 +17,7 @@ Clone the repo and run:
 
         make
 
-Make sure you're inside a Linux shell or WSL terminal with gcc and make installed.
+Make sure you're inside a Linux shell or WSL terminal with gcc installed
 
 
 ### 🚀 Running
@@ -33,6 +33,13 @@ Replace ./public with the directory containing your static files.
 - Fails if the folder is empty.
 
 -  Will attempt to serve index.html at root (/, /home, /index.html).
+  
+### 📜 Color-Coded Logging
+
+- Logs are colorized for clarity:
+
+![image](https://github.com/user-attachments/assets/20ba9705-f02d-4027-b6ab-1961307b5551)
+
 
 ### 📨 POST Support
 
@@ -84,14 +91,6 @@ Parses application/x-www-form-urlencoded bodies and saves to a .txt file, respon
 
 - Connection closes after timeout or reaching max request limit per socket.
 
-### 📜 Color-Coded Logging
-
-- Logs are colorized for clarity:
-
-        [GREEN] Server setup and lifecycle events 
-        [DEFAULT] Request handling steps and 
-        [YELLOW] debug info
-        [RED] Warnings and errors
 - Each client’s request lifecycle is traced with its own ID (port-based).
 
 ### 🧪 Designed for Learning, Not Deployment
