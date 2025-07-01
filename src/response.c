@@ -3,6 +3,7 @@
 #include "../include/utils.h"
 
 #include <dirent.h>
+#include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -14,6 +15,7 @@
 const struct MimeTypeMapping mime_types[] = {
     {"html", "text/html"},
     {"htm", "text/html"},
+    {"html.gz", "text/html"},
     {"css", "text/css"},
     {"js", "application/javascript"},
     {"json", "application/json"},
@@ -85,18 +87,30 @@ static const char *get_http_message(int status_code) {
   }
 }
 
-FILE *open_static_file(HttpRequest *request, HttpResponse *response,
-                       int client_id) {
+FILE *open_static_file(HttpRequest *request, HttpResponse *response, int client_id) {
+
   extern char *public_directory;
 
-  char file_path[30];
+  char file_path[50];
 
   if (strcmp(request->path, "/home") == 0 || strcmp(request->path, "/") == 0) {
-    snprintf(file_path, 30, "%s%s", public_directory, "/index.html");
+
+    if (request->accept_encoding == NULL) {
+
+      snprintf(file_path, 50, "%s%s", public_directory, "/index.html");
+    } else {
+
+      snprintf(file_path, 50, "%s%s", public_directory, "/compressed/index.html.gz");
+    }
 
   } else if (strchr(request->path, '.') == NULL) {
+    if (request->accept_encoding == NULL) {
 
-    snprintf(file_path, 30, "%s%s.html", public_directory, request->path);
+      snprintf(file_path, 50, "%s%s.html", public_directory, request->path);
+    } else {
+
+      snprintf(file_path, 50, "%s/compressed/%s.html.gz", public_directory, request->path);
+    }
 
   } else {
 
@@ -111,7 +125,13 @@ FILE *open_static_file(HttpRequest *request, HttpResponse *response,
       return NULL;
     };
 
-    snprintf(file_path, 30, "%s%s", public_directory, request->path);
+    bool is_text_file = (strstr(response->content_type, "text") != NULL) || (strstr(response->content_type, "application") != NULL);
+    if (request->accept_encoding != NULL && is_text_file) {
+
+      snprintf(file_path, 50, "%s/compressed/%s.gz", public_directory, request->path);
+    } else {
+      snprintf(file_path, 50, "%s%s", public_directory, request->path);
+    }
   }
 
   FILE *file_to_read = fopen(file_path, "rb");
@@ -127,31 +147,12 @@ FILE *open_static_file(HttpRequest *request, HttpResponse *response,
   int stat_result = fstat(fileno(file_to_read), &file_statbuf);
 
   if (stat_result < 0) {
-    log_to_console(&logs.error,
-                   "Failed to get the file information of the file", 0,
-                   client_id);
+    log_to_console(&logs.error, "Failed to get the file information of the file", 0, client_id);
     fclose(file_to_read);
     response->status_code = 500;
     return NULL;
   }
 
-  // size_t required_file_size = file_statbuf.st_size;
-  // remember to free this
-  // char *response_buffer = (char *)malloc(required_file_size);
-
-  // size_t bytes_read = fread(response_buffer, 1, required_file_size, file_to_read);
-
-  // printf("bytes_read: %lu\n", bytes_read);
-  // if (bytes_read != required_file_size) {
-  //   log_to_console(&logs.error, "Read Operation failed, sire!", 0, client_id);
-  //   fclose(file_to_read);
-  //   response->status_code = 500;
-  //   return NULL;
-  // }
-  // response->body = response_buffer;
-  // response->body[required_file_size - 1] = '\0';
-  // log_to_console(&logs.user, "File Read is successful, sire!", 0, client_id);
-  // fclose(file_to_read);
   response->content_length = file_statbuf.st_size;
   return file_to_read;
 }
@@ -227,6 +228,12 @@ ssize_t send_response(HttpRequest *request, HttpResponse *response, int client_f
   }
 
   // char *response_buffer = (char *)malloc(BUFFER_SIZE * 2);
+  char *content_encoding;
+  bool is_text_file = (strstr(response->content_type, "text") != NULL) || (strstr(response->content_type, "application") != NULL);
+  if (request->accept_encoding != NULL && is_text_file && file_to_send != NULL) {
+
+    content_encoding = "Content-Encoding: gzip\r\n";
+  }
   char *response_buffer = (char *)malloc(BUFFER_SIZE * 2);
   size_t response_header_length = snprintf(response_buffer, 2 * BUFFER_SIZE,
                                            "HTTP/1.1 %d %s\r\n"
@@ -234,6 +241,7 @@ ssize_t send_response(HttpRequest *request, HttpResponse *response, int client_f
                                            "Content-Length: %zu\r\n"
                                            "Connection: %s\r\n"
                                            "Keep-Alive: timeout=%d, max=%d\r\n"
+                                           "%s"
                                            "Server: %s\r\n"
                                            "\r\n",
                                            response->status_code,
@@ -243,6 +251,7 @@ ssize_t send_response(HttpRequest *request, HttpResponse *response, int client_f
                                            response->connection,
                                            SERVER_TIMEOUT,
                                            MAX_REQUESTS_PER_CONNECTION,
+                                           content_encoding,
                                            SERVER_NAME);
 
   if (file_to_send == NULL) {
@@ -251,6 +260,7 @@ ssize_t send_response(HttpRequest *request, HttpResponse *response, int client_f
     free(response_buffer);
     return 0;
   }
+
   size_t total_data_sent = 0;
   int header_to_send = 1;
 

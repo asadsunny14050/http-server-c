@@ -14,8 +14,7 @@
 
 bool match_and_set_header(char *header_key, char *header_value, HttpRequest *request) {
 
-  // convert all the characters of header-key to lowerbcase due to case
-  // insensitivity
+  // convert all the characters of header-key to lowerbcase due to case insensitivity
   for (int i = 0; header_key[i] != '\0'; i++) {
     header_key[i] = tolower(header_key[i]);
   }
@@ -32,6 +31,13 @@ bool match_and_set_header(char *header_key, char *header_value, HttpRequest *req
 
     request->content_type = header_value;
     return true;
+  } else if (strcmp(header_key, "accept-encoding") == 0) {
+    if (strstr(header_value, "gzip") == NULL)
+      return false;
+
+    request->accept_encoding = "gzip";
+    return true;
+
   } else if (strcmp(header_key, "connection") == 0) {
 
     request->connection = header_value;
@@ -115,9 +121,7 @@ int parse_request(char *request_buffer, HttpRequest *request, HttpResponse *resp
       printf("content-length not given\n");
       goto bad_request;
     }
-    if (request->content_type == NULL ||
-        strcmp(request->content_type, "application/x-www-form-urlencoded") !=
-            0) {
+    if (request->content_type == NULL || strcmp(request->content_type, "application/x-www-form-urlencoded") != 0) {
       printf("content-type not given\n");
       goto bad_request;
     }
@@ -194,7 +198,7 @@ void *handle_request(Node *p_client) {
 
     if (send_response(&request, &response, client_fd, client_id) == 0) {
       if (response.status_code != 200 && response.status_code != 201) {
-        log_to_console(&logs.error, "[%d] Response sent with Failure", response.status_code, client_id);
+        log_to_console(&logs.success, "[%d] Response sent with Failure", response.status_code, client_id);
       } else {
         log_to_console(&logs.success, "[%d] Response sent successfully", response.status_code, client_id);
       }
@@ -214,6 +218,7 @@ void *handle_request(Node *p_client) {
 
       log_to_console(&logs.info, "Client's exhausted his requests limit", 0, client_id);
     }
+    log_to_console(&logs.user, "Waiting for Client's next request..", 0, client_id);
 
   } while ((request.connection == NULL || strcmp("close", request.connection) != 0) && response_quota < MAX_REQUESTS_PER_CONNECTION);
 

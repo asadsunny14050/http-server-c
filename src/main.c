@@ -151,9 +151,8 @@ int main(int argc, char **argv) {
       continue;
     }
 
-    if (validate_content_type(file_extension + 1) != 0) {
-      log_to_debug(&logs.warning, "File: \e[35m%s\e[0m is not supported",
-                   dir_entry->d_name, 0);
+    if (validate_content_type(file_extension + 1, dir_entry->d_name) != 0) {
+      log_to_debug(&logs.warning, "File: \e[35m%s\e[0m is not supported", dir_entry->d_name, 0);
     }
     i++;
   }

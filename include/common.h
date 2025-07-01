@@ -17,6 +17,7 @@ typedef struct {
   char *connection;
   char *content_type;
   size_t content_length;
+  char *accept_encoding;
   char *body;
 } HttpRequest;
 

@@ -22,4 +22,4 @@ void log_to_console(const LOG_TYPE *log_type, char *log_message, int arg,
 void log_to_debug(const LOG_TYPE *log_type, char *log_message, char *arg,
                   int client_id);
 
-int validate_content_type(char *file_extension);
+int validate_content_type(char *file_extension, char *file_name);
