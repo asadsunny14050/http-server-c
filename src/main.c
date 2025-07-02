@@ -17,8 +17,9 @@
 #include "../include/response.h"
 #include "../include/utils.h"
 
+int PORT = DEFAULT_PORT;
+int THREAD_POOL_SIZE = DEFAULT_THREAD_POOL_SIZE;
 // pool of threads
-pthread_t THREAD_POOL[THREAD_POOL_SIZE];
 pthread_mutex_t lock = PTHREAD_MUTEX_INITIALIZER;
 pthread_cond_t condition_var = PTHREAD_COND_INITIALIZER;
 int num_waiting_threads = 0;
@@ -55,6 +56,7 @@ void *single_thread_lifetime() {
 }
 
 int init_server(struct sockaddr_in *serv_info) {
+  pthread_t THREAD_POOL[THREAD_POOL_SIZE];
 
   int sock_fd = socket(AF_INET, SOCK_STREAM, 0);
 
@@ -117,15 +119,57 @@ char *public_directory = NULL;
 
 int main(int argc, char **argv) {
 
-  if (argc != 2) {
-    perror("Usage: cpider-web-server <directory>");
+  if (argc < 2) {
+    fprintf(stderr, "Usage: cpider-web-server <directory>");
     exit(1);
   }
-  public_directory = argv[1];
+
+  char *port_arg = NULL;
+  char *thread_arg = NULL;
+
+  for (int i = 1; i < argc; i++) {
+    if ((port_arg = strstr(argv[i], "-p")) != NULL) {
+
+      int port_arg_value = 0;
+
+      if ((port_arg_value = atoi(port_arg + 2)) != 0) {
+        PORT = port_arg_value;
+
+      } else {
+        fprintf(stderr, "bad arguments\n");
+        exit(1);
+      }
+
+    } else if ((thread_arg = strstr(argv[i], "-t")) != NULL) {
+
+      int thread_arg_value = 0;
+
+      if ((thread_arg_value = atoi(thread_arg + 2)) != 0) {
+        THREAD_POOL_SIZE = thread_arg_value;
+
+      } else {
+        fprintf(stderr, "bad arguments\n");
+        exit(1);
+      }
+
+    } else if (argv[i][0] != '-' && public_directory == NULL) {
+
+      public_directory = argv[i];
+    } else {
+      fprintf(stderr, "Invalid arguments. Only arguments are -t <number-of-threads>, -p <port-number> and a directory path\n");
+      exit(1);
+    }
+  }
+
+  if (public_directory == NULL) {
+    fprintf(stderr, "no directory given, what do you want me to serve?\n");
+    exit(1);
+  }
 
   DIR *dir = opendir(public_directory);
   if (!dir) {
-    perror("cannot find path, input a directory that actually exists lol!");
+    fprintf(stderr, "cannot find path, input a directory that actually exists lol!\n");
+
     exit(1);
   }
 
@@ -141,8 +185,7 @@ int main(int argc, char **argv) {
     if (strcmp(dir_entry->d_name, "index.html") == 0)
       index_html_exists = true;
 
-    if (!strcmp(dir_entry->d_name, ".") || dir_entry->d_name[0] == '.' ||
-        !strcmp(dir_entry->d_name, "..")) {
+    if (!strcmp(dir_entry->d_name, ".") || dir_entry->d_name[0] == '.' || !strcmp(dir_entry->d_name, "..")) {
       continue;
     }
 

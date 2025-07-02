@@ -2,13 +2,14 @@
 
 #include <stdio.h>
 
-#define PORT 4000
+#define DEFAULT_PORT 4000
 #define SERVER_NAME "cpider"
 #define BUFFER_SIZE 3000
+#define MAX_FILE_SIZE 104857600
 #define MAX_REQUESTS_PER_CONNECTION 20
 #define SERVER_TIMEOUT 10
 
-#define THREAD_POOL_SIZE 16
+#define DEFAULT_THREAD_POOL_SIZE 16
 
 typedef struct {
   char *method;
