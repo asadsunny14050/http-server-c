@@ -5,6 +5,29 @@ A simple, multithreaded HTTP server written in C for serving static files and ha
 - ⚠️ Not production-ready. This project is meant for learning purposes only, designed to help understand systems-level programming, socket handling, and concurrent request processing in C.
 
 ## ✨ Usage
+To start the cpider static file server, run the executable with the path to the directory you wish to serve.
+
+    ./cpider ./public_html
+
+This will start the server on the default port (typically 4000) with a default number of worker threads (e.g., matching your CPU core count), serving files from the ./public_html directory.
+
+![image](https://github.com/user-attachments/assets/b948150c-43da-40c9-a3e8-2cab8c3224d4)
+
+
+### Advanced Usage (Optional Arguments):
+You can customize the server's behavior using the following optional command-line flags:
+
+- ```-t <num_threads>``` : Specifies the maximum number of worker threads the server should spawn to handle incoming requests.
+	- Recommended Value: It's generally advised to set this to \(2 \times \text{CPU Cores}\) or \(1 \times \text{CPU Cores}\) for I/O-bound tasks. Avoid excessively high numbers, as too many threads can lead to increased context switching overhead. If omitted, the server will default to an appropriate number (e.g., based on the system's CPU core count).
+- ```-p <port_number>``` : Specifies the TCP port on which the server will listen for incoming HTTP connections.
+	- Default: If omitted, the server will default to port 4000.
+	- Note: Ports below 1024 usually require root/administrator privileges.
+
+### Example with all options:
+
+    ./cpider -t12 -p5000 ./my_website_files
+
+This command will start cpider with ***12 worker threads***, listening on ***port 5000***, and serving static files from the ./my_website_files directory.
 
 
 ### 🏗️ Building:
@@ -15,31 +38,25 @@ This server runs only on Linux or WSL environments. It uses POSIX threads and Li
 
 Clone the repo and run:
 
-        make
+    make
 
-Make sure you're inside a Linux shell or WSL terminal with gcc installed
+Make sure you're inside a Linux shell or WSL terminal with gcc installed and the zlib library which should be pre-installed
 
 
 ### 🚀 Running
 
     ./cpider ./public
 
-Replace ./public with the directory containing your static files.
 
 - Server scans the folder:
 
 - Logs warnings for unsupported file types.
 
+- Compressed the files that can be compressed 
+
 - Fails if the folder is empty.
 
--  Will attempt to serve index.html at root (/, /home, /index.html).
-  
-### 📜 Color-Coded Logging
-
-- Logs are colorized for clarity:
-
-![image](https://github.com/user-attachments/assets/20ba9705-f02d-4027-b6ab-1961307b5551)
-
+- Will attempt to serve index.html at root (/, /home, /index.html).
 
 ### 📨 POST Support
 
@@ -64,8 +81,9 @@ Replace ./public with the directory containing your static files.
 ### ✅ Supports GET and POST
 
 - **GET**: Serves static files with MIME-compliant headers.
+  
 - **POST**: Accepts form submissions at /contact. 
-Parses application/x-www-form-urlencoded bodies and saves to a .txt file, responding with 201 Created.
+   - Parses application/x-www-form-urlencoded bodies and saves to a records.txt file, responding with 201 Created.
 
 ### 🧠 Manual HTTP Request Parsing
 
@@ -92,6 +110,23 @@ Parses application/x-www-form-urlencoded bodies and saves to a .txt file, respon
 - Connection closes after timeout or reaching max request limit per socket.
 
 - Each client’s request lifecycle is traced with its own ID (port-based).
+
+### 🗜️ Gzip Compression (Accept-Encoding)
+- Automatic Pre-compression: cpider scans the served directory and automatically creates Gzip-compressed versions of static files.
+
+- Dedicated Storage: Compressed files are stored in a compressed/ folder within the served directory.
+  
+- Smart Serving:
+	- If a client supports Gzip (Accept-Encoding: gzip) which is most browsers these days, cpider serves the pre-compressed .gz file.
+	- Otherwise, the original uncompressed file is served.
+
+- Benefits: Reduces bandwidth, speeds up loading times, and improves server performance by offloading on-the-fly compression.
+
+### 📜 Color-Coded Logging
+
+- Logs are colorized for clarity:
+
+![image](https://github.com/user-attachments/assets/20ba9705-f02d-4027-b6ab-1961307b5551)
 
 ### 🧪 Designed for Learning, Not Deployment
 
