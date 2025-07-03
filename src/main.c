@@ -90,9 +90,9 @@ int init_server(struct sockaddr_in *serv_info) {
     return -1;
   }
 
-  log_to_console(&logs.info,
-                 "Provisioning %d threads for the workload as commanded, sire!",
-                 THREAD_POOL_SIZE, 0);
+  THREAD_POOL_SIZE = sysconf(_SC_NPROCESSORS_ONLN);
+
+  log_to_console(&logs.info, "Provisioning %d threads for the workload as commanded, sire!", THREAD_POOL_SIZE, 0);
   printf("[Spinning Threads]: ");
   for (int i = 0; i < THREAD_POOL_SIZE; i++) {
 

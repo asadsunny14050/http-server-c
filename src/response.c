@@ -15,7 +15,6 @@
 const struct MimeTypeMapping mime_types[] = {
     {"html", "text/html"},
     {"htm", "text/html"},
-    {"html.gz", "text/html"},
     {"css", "text/css"},
     {"js", "application/javascript"},
     {"json", "application/json"},
@@ -55,6 +54,7 @@ static const char *http_status_messages[] = {"OK",
                                              "Created",
                                              "Bad Request",
                                              "Unauthorized",
+                                             "Forbidden",
                                              "Not Found",
                                              "Unsupported Media Type",
                                              "Internal Server Error"};
@@ -73,14 +73,17 @@ static const char *get_http_message(int status_code) {
   case 401:
     return http_status_messages[3];
     break;
-  case 404:
+  case 403:
     return http_status_messages[4];
     break;
-  case 415:
+  case 404:
     return http_status_messages[5];
     break;
-  case 500:
+  case 415:
     return http_status_messages[6];
+    break;
+  case 500:
+    return http_status_messages[7];
     break;
   default:
     return http_status_messages[0];
@@ -153,6 +156,13 @@ FILE *open_static_file(HttpRequest *request, HttpResponse *response, int client_
     return NULL;
   }
 
+  if (file_statbuf.st_size > MAX_FILE_SIZE) {
+    log_to_console(&logs.error, "File exceeds the max size Cpider is set to serve", 0, client_id);
+    fclose(file_to_read);
+    response->status_code = 403;
+    return NULL;
+  }
+
   response->content_length = file_statbuf.st_size;
   return file_to_read;
 }
@@ -214,6 +224,16 @@ ssize_t send_response(HttpRequest *request, HttpResponse *response, int client_f
 
   const char *http_message = get_http_message(response->status_code);
 
+  if (strcmp(request->path, "/home") == 0 || strcmp(request->path, "/") == 0) {
+    response->status_code = 200;
+    response->body = "<html><body>"
+                     "<h1>Welcome to Cpider!</h1>"
+                     "<h2>Your Friendly Neighborhood Http Server!</h2>"
+                     "<p>Create an index.html file to replace this as your Home Page</p>"
+                     "</body></html>";
+    response->content_length = strlen(response->body);
+  }
+
   if (response->status_code != 200) {
     response->body = (char *)malloc(BUFFER_SIZE);
     snprintf(response->body, BUFFER_SIZE,
@@ -222,8 +242,7 @@ ssize_t send_response(HttpRequest *request, HttpResponse *response, int client_f
     response->content_length = strlen(response->body);
   }
 
-  if (request->connection != NULL &&
-      strcmp("close", request->connection) == 0) {
+  if (request->connection != NULL && strcmp("close", request->connection) == 0) {
     response->connection = request->connection;
   }
 

@@ -9,7 +9,7 @@ To start the cpider static file server, run the executable with the path to the 
 
     ./cpider ./public_html
 
-This will start the server on the default port (typically 4000) with a default number of worker threads (e.g., matching your CPU core count), serving files from the ./public_html directory.
+This will start the server on the default port (typically 8080) with a default number of worker threads (e.g., matching your CPU core count), serving files from the ./public_html directory.
 
 ![image](https://github.com/user-attachments/assets/b948150c-43da-40c9-a3e8-2cab8c3224d4)
 
@@ -18,9 +18,9 @@ This will start the server on the default port (typically 4000) with a default n
 You can customize the server's behavior using the following optional command-line flags:
 
 - ```-t <num_threads>``` : Specifies the maximum number of worker threads the server should spawn to handle incoming requests.
-	- Recommended Value: It's generally advised to set this to \(2 \times \text{CPU Cores}\) or \(1 \times \text{CPU Cores}\) for I/O-bound tasks. Avoid excessively high numbers, as too many threads can lead to increased context switching overhead. If omitted, the server will default to an appropriate number (e.g., based on the system's CPU core count).
+	- Recommended Value: It's generally advised to set this to 2 times your CPU Cores or or just the number of CPU Cores for I/O-bound tasks. Avoid excessively high numbers, as too many threads can lead to increased context switching overhead. If omitted, the server will default to an appropriate number (e.g., based on the system's CPU core count).
 - ```-p <port_number>``` : Specifies the TCP port on which the server will listen for incoming HTTP connections.
-	- Default: If omitted, the server will default to port 4000.
+	- Default: If omitted, the server will default to port 8080.
 	- Note: Ports below 1024 usually require root/administrator privileges.
 
 ### Example with all options:

@@ -2,12 +2,12 @@
 
 #include <stdio.h>
 
-#define DEFAULT_PORT 4000
+#define DEFAULT_PORT 8080
 #define SERVER_NAME "cpider"
 #define BUFFER_SIZE 3000
 #define MAX_FILE_SIZE 104857600
 #define MAX_REQUESTS_PER_CONNECTION 20
-#define SERVER_TIMEOUT 10
+#define SERVER_TIMEOUT 60
 
 #define DEFAULT_THREAD_POOL_SIZE 16
 
